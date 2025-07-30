@@ -1,16 +1,18 @@
 # Python
 __pycache__/
-*.pyc
-*.pyo
+
 
 # Virtual environments
 venv/
-.env/
-scraper-env/
 
 # Jupyter
 .ipynb_checkpoints/
 
 # Data
-data/*.csv
+data/csv
 !data/sample_*.csv  # Keep small sample CSVs
+
+# Ignore temporary or experimental scripts
+huggingface_skill.py
+jd_skills.py
+jd_skills_analysis.ipynb
