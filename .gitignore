@@ -9,7 +9,7 @@ venv/
 .ipynb_checkpoints/
 
 # Data
-data/csv
+*.csv
 !data/sample_*.csv  # Keep small sample CSVs
 
 # Ignore temporary or experimental scripts

@@ -2,9 +2,26 @@
 from playwright.async_api import async_playwright
 import asyncio
 import pandas as pd
+from numpy import nan
+from datetime import datetime, timedelta
+import re
+
+async def parse_date_posted(page, selector):
+    date_text = (await page.locator(selector).first.text_content()).strip()
+
+    current_date = datetime.now()
+    relative_date_text = date_text.replace("Posted", "").replace("ago", "").strip()
+
+    if "d" in relative_date_text: # if the date is in days
+        days = int(relative_date_text.replace("d", "").strip())
+        return (current_date - timedelta(days=days)).strftime(r"%Y-%m-%d")
+    elif "h" in relative_date_text: # If the date is in hour(s) ago
+        return current_date.strftime(r"%Y-%m-%d")
+    else: # If the date is in minute(s) or second(s)
+        return current_date.strftime(r"%Y-%m-%d")
 
 
-async def web_scraper(portal, location, keyword, page_number):
+async def web_scraper(portal="ph", location="Thailand", keyword="Data-Analyst", page_number=1):
     # Phase 1: Initiate
     print("Initiating JobStreet Scraper")
     print(f"{portal} {location} {keyword} {page_number}")
@@ -57,41 +74,50 @@ async def web_scraper(portal, location, keyword, page_number):
         print("\nExtracting Job Details")
         for link in job_links:
 
-            job_link = f"https://{portal}.jobstreet.com{link}" 
+            job_id = link.split("/job/")[1].split("?")[0]
+            site = "jobstreet"
+            job_url = f"https://{portal}.jobstreet.com{link}" 
+            job_url_direct = nan
 
-            await page.goto(job_link)
+            await page.goto(job_url)
 
-            job_position = (await page.locator("h1[data-automation='job-detail-title']").text_content()).strip()
+            title = (await page.locator("h1[data-automation='job-detail-title']").text_content()).strip()
 
-            company_name = (await page.locator("span[data-automation='advertiser-name']").text_content()).strip()
-
-
+            company = (await page.locator("span[data-automation='advertiser-name']").text_content()).strip()
             location = (await page.locator("span[data-automation='job-detail-location']").text_content()).strip()
-            department = (await page.locator("span[data-automation='job-detail-classifications']").text_content()).strip()
+            date_posted = await parse_date_posted(page, "xpath=(//span[contains(text(),'Posted')])[1]")
+            
+
+
+            
+            
+            job_function = (await page.locator("span[data-automation='job-detail-classifications']").text_content()).strip()
             employment_type = (await page.locator("span[data-automation='job-detail-work-type']").text_content()).strip()
             salary_locator = page.locator("span[data-automation='job-detail-salary']")
 
             if await salary_locator.count() > 0:
                 salary_range = (await salary_locator.text_content()).strip()
             else:
-                salary_range = "Not specified"
+                salary_range = nan
 
             job_description = (await page.locator("div._1lns5ab0.sye2ly0").text_content()).strip()
 
             job_data.append({
-                "position": job_position,
-                "company": company_name,
+                "title": title,
+                "company": company,
                 "location": location,
-                "department": department,
+                "date_posted": date_posted,
+                "job_function": job_function,
                 "employment_type": employment_type,
                 "salary_range": salary_range,
                 "job_description_raw": job_description,
-                "job_link": job_link
+                "job_link": job_url
             })
 
             # print(job_position)
             # print(company_name)
             # print(location)
+            # print(date_posted)
             # print(department)
             # print(employment_type)
             # print(salary_range)
@@ -106,7 +132,7 @@ async def web_scraper(portal, location, keyword, page_number):
                 data_frame[col] = data_frame[col].str.replace("\n", " ", regex=False).str.replace("\r", " ", regex=False)
 
 
-        data_frame.to_csv("jobstreet_jobs.csv", index=False, quotechar='"', escapechar='\\', encoding='utf-8-sig')
+        data_frame.to_csv("data/jobstreet_jobs.csv", index=False, quotechar='"', escapechar='\\', encoding='utf-8-sig')
         print("Data saved to CSV")
 
 # Run the Function
@@ -120,9 +146,13 @@ if __name__ == "__main__":
     print("sg = Singapore")
     print("ph = Philippines")
     print("id = Indonesia")
-    portal = input("Please choose a JobStreet Portal: ").lower().strip()
-    location = input("Please input a Location: ").strip()
-    keyword = input("Please input a Job Position: ").strip().replace(" ", "-")
-    page_number = int(input("Kindly input the number of pages you want to scrape: "))
+    portal = input("Choose a JobStreet Portal: ").lower().strip()
+    location = input("Location: ").strip()
+    keyword = input("Job Position: ").strip().replace(" ", "-")
+    page_number = int(input("Number of pages you want to scrape: "))
 
-    asyncio.run(web_scraper(portal, location, keyword, page_number))
+    # Test Run
+    asyncio.run(web_scraper())
+
+    # Proper Run
+    # asyncio.run(web_scraper(portal, location, keyword, page_number))
