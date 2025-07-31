@@ -2,7 +2,7 @@
 from playwright.async_api import async_playwright
 import asyncio
 import pandas as pd
-from numpy import nan
+from pandas import NA
 from datetime import datetime, timedelta
 import re
 
@@ -81,14 +81,79 @@ async def parse_salary(page, currency_values, currency_dictionary):
         elif re.search("hour", salary_text):
             interval = "hourly"     
     else:
-        salary_source = nan
-        interval = nan
-        min_amount = nan
-        max_amount = nan
-        currency = nan
+        salary_source = NA
+        interval = NA
+        min_amount = NA
+        max_amount = NA
+        currency = NA
     
     return salary_source, interval, min_amount, max_amount, currency
 
+async def parse_company_logo(page):
+    logo = page.locator("div[data-testid='bx-logo-image'] img")
+    if await logo.count() > 0:
+        logo_src = await logo.get_attribute("src")
+        print(logo_src)
+        return await logo.get_attribute("src")
+    else:
+        print("no logo")
+        return NA
+
+async def parse_company_info(page, portal):
+    link_locator = page.locator("a[data-automation='company-profile-profile-link']")
+
+    if await link_locator.count() > 0:
+        company_url_href = await link_locator.get_attribute("href")
+    else:
+        company_url_href = NA
+
+    if not pd.isna(company_url_href):
+        company_url = f"https://{portal}.jobstreet.com{company_url_href}"
+        print(company_url)
+        await page.goto(company_url)
+
+        company_url_direct_locator = page.locator("a[id='website-value']")
+        if await company_url_direct_locator.count() > 0:
+            company_url_direct = await company_url_direct_locator.get_attribute("href")
+        else: 
+            company_url_direct = NA
+        
+        company_industry_locator = page.locator("xpath=//h3[contains(text(), 'Industry')]/parent::div/following-sibling::div//span")
+        if await company_industry_locator.count() > 0:
+            company_industry = (await company_industry_locator.text_content()).strip()
+            print(company_industry)
+        else:
+            company_industry = NA
+        
+        company_addresses_locator = page.locator("xpath=//h3[contains(text(), 'Primary location')]/parent::div/following-sibling::div//span")
+        if await company_addresses_locator.count() > 0:
+            company_addresses = (await company_addresses_locator.text_content()).strip()
+            print(company_addresses)
+        else:
+            company_addresses = NA
+        
+        company_num_emp_locator = page.locator("xpath=//h3[contains(text(), 'Company size')]/parent::div/following-sibling::div//span")
+        if await company_num_emp_locator.count() > 0:
+            company_num_emp = (await company_num_emp_locator.text_content()).strip()
+            print(company_num_emp)
+        else:
+            company_num_emp = NA
+
+        company_description_locator = page.locator("//h2[contains(text(), 'Company overview')]/ancestor::div[3]/following-sibling::div[1]/div/div[last()]")
+        if await company_description_locator.count() > 0:
+            company_description = (await company_description_locator.text_content()).strip()
+        else:
+            company_description = NA
+    else:
+        company_url = NA
+        company_industry = NA
+        company_url_direct = NA
+        company_addresses = NA
+        company_num_emp = NA
+        company_description = NA
+
+    return company_url, company_industry, company_url_direct, company_addresses, company_num_emp, company_description
+    
 
 async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_number=1):
     # Phase 1: Initiate
@@ -105,17 +170,6 @@ async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_num
         page = await context.new_page()
         job_links = []
         job_data = []
-
-        # Block unnecessary resources
-        async def route_handler(route, request):
-            if request.resource_type in ["image", "stylesheet", "font"]:
-                await route.abort()
-            else:
-                await route.continue_()
-        
-        await context.route("**/*", route_handler)
-
-        # , wait_until="networkidle"
 
         # Phase 2: Extract all job links
         print("Extracting Job Links")
@@ -169,14 +223,16 @@ async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_num
             job_type = (await page.locator("span[data-automation='job-detail-work-type']").text_content()).strip()
             salary_source, interval, min_amount, max_amount, currency= await parse_salary(page, currency_values, currency_dictionary)
             job_function = (await page.locator("span[data-automation='job-detail-classifications']").text_content()).strip()
-            job_description = (await page.locator("div._1lns5ab0.sye2ly0").text_content()).strip()
             listing_type = link.split("type=")[1].split("&")[0]
-
+            description = (await page.locator("div._1lns5ab0.sye2ly0").text_content()).strip()
+            company_logo = await parse_company_logo(page)
+            company_url, company_industry, company_url_direct, company_addresses, company_num_emp, company_description = await parse_company_info(page, portal)
+            
             job_data.append({
                 "id": job_id,
                 "site": site,
                 "job_url": job_url,
-                "job_url_direct": nan,
+                "job_url_direct": NA,
                 "title": title,
                 "company": company,
                 "location": location,
@@ -189,20 +245,28 @@ async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_num
                 "currency": currency,
                 "is_remote": is_remote,
                 "work_setup": work_setup,
-                "job_level": nan,
+                "job_level": NA,
                 "job_function": job_function,
                 "listing_type": listing_type,
-                "emails": nan,
-                "description": job_description,
+                "emails": NA,
+                "description": description,
+                "company_industry": company_industry,
+                "company_url": company_url,
+                "company_logo": company_logo,
+                "company_url_direct": company_url_direct,
+                "company_addresses": company_addresses,
+                "company_num_emp": company_num_emp,
+                "company_revenue": NA,
+                "company_description": company_description,
             })
         
         print("Extraction Completed")
         print("Saving data to CSV")
         data_frame = pd.DataFrame(job_data)
 
-        for col in data_frame.columns:
-            if data_frame[col].dtype == "object":
-                data_frame[col] = data_frame[col].str.replace("\n", " ", regex=False).str.replace("\r", " ", regex=False)
+        # for col in data_frame.columns:
+        #     if data_frame[col].dtype == "object":
+        #         data_frame[col] = data_frame[col].str.replace("\n", " ", regex=False).str.replace("\r", " ", regex=False)
 
         data_frame.to_csv("data/jobstreet_jobs.csv", index=False, quotechar='"', escapechar='\\', encoding='utf-8-sig')
         print("Data saved to CSV")
