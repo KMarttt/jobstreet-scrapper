@@ -281,7 +281,6 @@ if __name__ == "__main__":
     print("my = Malaysia")
     print("sg = Singapore")
     print("ph = Philippines")
-    print("id = Indonesia")
     portal = input("Choose a JobStreet Portal: ").lower().strip()
     location = input("Location: ").strip()
     keyword = input("Job Position: ").strip().replace(" ", "-")
