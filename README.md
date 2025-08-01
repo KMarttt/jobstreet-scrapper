@@ -2,7 +2,7 @@
 
 A Python-based asynchronous web scraper for extracting job listings from JobStreet portals using Playwright.
 
-## Setup Instructions
+## Setup Instructions (Windows, Command Prompt)
 
 1. Clone the Repository:
 
