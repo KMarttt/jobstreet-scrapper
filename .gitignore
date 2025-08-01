@@ -12,6 +12,9 @@ venv/
 *.csv
 !data/sample_*.csv  # Keep small sample CSVs
 
+# Keep the empty folder in Git
+!data/.gitkeep
+
 # Ignore temporary or experimental scripts
 huggingface_skill.py
 jd_skills.py
