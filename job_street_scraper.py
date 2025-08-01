@@ -79,7 +79,9 @@ async def parse_salary(page, currency_values, currency_dictionary):
         elif re.search("week", salary_text):
             interval = "weekly"
         elif re.search("hour", salary_text):
-            interval = "hourly"     
+            interval = "hourly" 
+        else:
+            interval = NA
     else:
         salary_source = NA
         interval = NA
@@ -96,7 +98,6 @@ async def parse_company_logo(page):
         print(logo_src)
         return await logo.get_attribute("src")
     else:
-        print("no logo")
         return NA
 
 async def parse_company_info(page, portal):
@@ -286,8 +287,8 @@ if __name__ == "__main__":
     keyword = input("Job Position: ").strip().replace(" ", "-")
     page_number = int(input("Number of pages you want to scrape: "))
 
-    # Test Run
-    asyncio.run(web_scraper())
+    # # Test Run
+    # asyncio.run(web_scraper())
 
-    # # Proper Run
-    # asyncio.run(web_scraper(portal, location, keyword, page_number))
+    # Proper Run
+    asyncio.run(web_scraper(portal, location, keyword, page_number))
