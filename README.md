@@ -7,8 +7,8 @@ A Python-based asynchronous web scraper for extracting job listings from JobStre
 1. Clone the Repository:
 
 ```
-git clone https://github.com/KMarttt/jobstreet-scrapper
-cd Try-JobStreet-Scraping
+git clone https://github.com/KMarttt/jobstreet-scrapper.git
+cd jobstreet-scrapper
 ```
 
 2. Create and active a virtual environment:
