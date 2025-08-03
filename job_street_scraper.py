@@ -19,7 +19,7 @@ async def parse_date_posted(page):
     current date.
 
     Args:
-        page: The page object representing the job listing page.
+        page (page object): The page object representing the job listing page.
 
     Returns:
         A string representing the date the job was posted in the "YYYY-MM-DD" format.
@@ -31,7 +31,6 @@ async def parse_date_posted(page):
     relative_date_text = date_text.replace("Posted", "").replace("ago", "").strip()
 
     if "d" in relative_date_text: # if the date is in days
-        # days = int(relative_date_text.replace("d", "").replace("+", "").strip())
         days = int(re.sub(r"[^\d]", "", relative_date_text))
         return (current_date - timedelta(days=days)).strftime(r"%Y-%m-%d")
     elif "h" in relative_date_text: # If the date is in hour(s) ago
@@ -46,7 +45,7 @@ async def parse_location(page):
     and a string indicating the work setup ("onsite", "hybrid", or "remote").
 
     Args:
-        page: The page object representing the job listing page.
+        page (page object): The page object representing the job listing page.
 
     Returns:
         A tuple containing the location string, a boolean indicating if the job is
@@ -75,9 +74,9 @@ async def parse_salary(page, currency_values, currency_dictionary):
     corresponding salary interval, min and max amounts, and currency.
 
     Args:
-        page: The page object representing the job listing page.
-        currency_values: A list of currency values of the country portal.
-        currency_dictionary: A dictionary mapping currency names to their
+        page (page object): The page object representing the job listing page.
+        currency_values (list): A list of currency values of the country portal.
+        currency_dictionary (dict): A dictionary mapping currency names to their
             corresponding currency values.
 
     Returns:
@@ -142,7 +141,7 @@ async def parse_company_logo(page):
     corresponding logo source URL as a string.
 
     Args:
-        page: The page object representing the job listing page.
+        page (page object): The page object representing the job listing page.
 
     Returns:
         A string representing the logo source URL or NA if the logo is not found.
@@ -162,8 +161,8 @@ async def parse_company_info(page, portal):
     company number of employees, and company description.
 
     Args:
-        page: The page object representing the job listing page.
-        portal: The JobStreet portal (e.g., "my", "sg", "ph").
+        page (page object): The page object representing the job listing page.
+        portal (str): The JobStreet portal (e.g., "my", "sg", "ph").
 
     Returns:
         A tuple containing the company url, industry, company url (direct), company
