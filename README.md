@@ -2,6 +2,8 @@
 
 A Python-based asynchronous web scraper for extracting job listings from JobStreet portals using Playwright.
 
+#### Note: This script is still under development. Expect messy console output and various print statements used for debugging and bug detection.
+
 ## Setup Instructions (Windows, Command Prompt)
 
 1. Clone the Repository:
@@ -10,8 +12,6 @@ A Python-based asynchronous web scraper for extracting job listings from JobStre
 git clone https://github.com/KMarttt/jobstreet-scrapper.git
 cd jobstreet-scrapper
 ```
-
-2. Create and active a virtual environment:
 
 ```
 python -m venv .venv
