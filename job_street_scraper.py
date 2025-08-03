@@ -8,6 +8,23 @@ import re
 
 
 async def parse_date_posted(page):
+    """
+    Parses the date posted information from the job listing page and returns the
+    corresponding date in the format "YYYY-MM-DD".
+
+    The function retrieves the text content indicating when the job was posted 
+    (e.g., "Posted 3d ago") and calculates the exact date based on the current date. 
+    If the posting is in days, it subtracts the specified number of days from the 
+    current date. If the posting is in hours, minutes, or seconds, it returns the 
+    current date.
+
+    Args:
+        page: The page object representing the job listing page.
+
+    Returns:
+        A string representing the date the job was posted in the "YYYY-MM-DD" format.
+    """
+
     date_text = (await page.locator("xpath=(//span[contains(text(),'Posted')])[1]").first.text_content()).strip()
 
     current_date = datetime.now()
@@ -23,6 +40,18 @@ async def parse_date_posted(page):
         return current_date.strftime(r"%Y-%m-%d")
     
 async def parse_location(page):
+    """
+    Parses the location information from the job listing page and returns the
+    corresponding location as a string, a boolean indicating if the job is remote,
+    and a string indicating the work setup ("onsite", "hybrid", or "remote").
+
+    Args:
+        page: The page object representing the job listing page.
+
+    Returns:
+        A tuple containing the location string, a boolean indicating if the job is
+        remote, and a string indicating the work setup ("onsite", "hybrid", or "remote").
+    """
     location_section = (await page.locator("span[data-automation='job-detail-location']").text_content()).strip()
 
     if re.search("(hybrid)", location_section.lower()):
@@ -41,6 +70,22 @@ async def parse_location(page):
     return location, is_remote, work_setup
 
 async def parse_salary(page, currency_values, currency_dictionary):
+    """
+    Parses the salary information from the job listing page and returns the
+    corresponding salary interval, min and max amounts, and currency.
+
+    Args:
+        page: The page object representing the job listing page.
+        currency_values: A list of currency values of the country portal.
+        currency_dictionary: A dictionary mapping currency names to their
+            corresponding currency values.
+
+    Returns:
+        A tuple containing the source of the salary information, the salary
+        interval ("yearly", "monthly", "weekly", "hourly", or NA), the minimum
+        salary amount, the maximum salary amount, and the currency of the salary
+        (or NA if the currency is not found).
+    """
     salary_locator = page.locator("span[data-automation='job-detail-salary']")
 
     # Checks if the salary is present on the page
@@ -92,6 +137,16 @@ async def parse_salary(page, currency_values, currency_dictionary):
     return salary_source, interval, min_amount, max_amount, currency
 
 async def parse_company_logo(page):
+    """
+    Parses the company logo information from the job listing page and returns the
+    corresponding logo source URL as a string.
+
+    Args:
+        page: The page object representing the job listing page.
+
+    Returns:
+        A string representing the logo source URL or NA if the logo is not found.
+    """
     logo = page.locator("div[data-testid='bx-logo-image'] img")
     if await logo.count() > 0:
         logo_src = await logo.get_attribute("src")
@@ -101,6 +156,19 @@ async def parse_company_logo(page):
         return NA
 
 async def parse_company_info(page, portal):
+    """
+    Parses the company information from the job listing page and returns the
+    corresponding company url, industry, company url (direct), company addresses,
+    company number of employees, and company description.
+
+    Args:
+        page: The page object representing the job listing page.
+        portal: The JobStreet portal (e.g., "my", "sg", "ph").
+
+    Returns:
+        A tuple containing the company url, industry, company url (direct), company
+        addresses, company number of employees, and company description.
+    """
     link_locator = page.locator("a[data-automation='company-profile-profile-link']")
 
     if await link_locator.count() > 0:
@@ -158,6 +226,22 @@ async def parse_company_info(page, portal):
 
 async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_number=1):
     # Phase 1: Initiate
+    """
+    Asynchronously scrapes job listings from the JobStreet portal based on user-defined parameters.
+
+    This function initiates a Playwright session to navigate JobStreet pages, extracts job links and their details, 
+    and saves the collected data to a CSV file.
+
+    Args:
+        portal (str): The JobStreet portal to scrape (default is "my" for Malaysia).
+        location (str): The city or area to filter job listings (default is an empty string for all locations).
+        keyword (str): The job position or title to search for (default is "Data-Analyst").
+        page_number (int): The number of pages to scrape for job listings (default is 1).
+
+    Returns:
+        None
+    """
+
     print("Initiating JobStreet Scraper")
     print(f"{portal} {location} {keyword} {page_number}")
     async with async_playwright() as pw:
@@ -264,11 +348,6 @@ async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_num
         print("Extraction Completed")
         print("Saving data to CSV")
         data_frame = pd.DataFrame(job_data)
-
-        # for col in data_frame.columns:
-        #     if data_frame[col].dtype == "object":
-        #         data_frame[col] = data_frame[col].str.replace("\n", " ", regex=False).str.replace("\r", " ", regex=False)
-
         data_frame.to_csv("data/jobstreet_jobs.csv", index=False, quotechar='"', escapechar='\\', encoding='utf-8-sig')
         print("Data saved to CSV")
 

@@ -19,3 +19,5 @@ venv/
 huggingface_skill.py
 jd_skills.py
 jd_skills_analysis.ipynb
+
+.vscode
