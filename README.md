@@ -1,6 +1,6 @@
 # JobStreet & JobsDB Web Scraper
 
-A Python-based asynchronous web scraper for extracting job listings from JobStreet portals using Playwright.
+A Python-based asynchronous web scraper for extracting job listings from JobStreet and JobsDB portals using Playwright.
 
 #### Note: This script is still under development. Expect messy console output and various print statements used for debugging and bug detection.
 
