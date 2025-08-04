@@ -47,8 +47,6 @@ async def parse_salary(page, currency_values, currency_dictionary):
     if await salary_locator.count() > 0:
         salary_source = "direct_data"
         salary_text = (await salary_locator.text_content()).strip().lower()
-        # salary_text = salary_text.replace("–", "-").replace("—", "-")  # en/em dash to normal hyphen
-        # salary_text = salary_text.replace("\u00a0", " ")               # non-breaking spaces
         numbers = re.findall(r"\d[\d,]*", salary_text)
         print(numbers)
         numbers = [int(n.replace(",", "")) for n in numbers]
@@ -80,6 +78,7 @@ async def parse_salary(page, currency_values, currency_dictionary):
                     currency = currency_dictionary[c]
                     break
         
+        # Last Falback for currency
         if "currency" not in locals():
             currency = NA
         
@@ -306,9 +305,6 @@ if __name__ == "__main__":
         site = "jobsdb"
     else:
         site = "jobstreet"
-
-    # # Test Run
-    # asyncio.run(web_scraper())
 
     # Proper Run
     asyncio.run(web_scraper(portal, site, location, keyword, page_number))
