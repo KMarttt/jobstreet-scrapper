@@ -12,6 +12,7 @@ async def parse_date_posted(page):
 
     current_date = datetime.now()
     relative_date_text = date_text.replace("Posted", "").replace("ago", "").strip()
+    print(f"Relative date text: {relative_date_text!r}")
 
     if "d" in relative_date_text: # if the date is in days
         days = int(re.sub(r"[^\d]", "", relative_date_text))
@@ -46,21 +47,30 @@ async def parse_salary(page, currency_values, currency_dictionary):
     if await salary_locator.count() > 0:
         salary_source = "direct_data"
         salary_text = (await salary_locator.text_content()).strip().lower()
+        # salary_text = salary_text.replace("–", "-").replace("—", "-")  # en/em dash to normal hyphen
+        # salary_text = salary_text.replace("\u00a0", " ")               # non-breaking spaces
         numbers = re.findall(r"\d[\d,]*", salary_text)
+        print(numbers)
         numbers = [int(n.replace(",", "")) for n in numbers]
+        print(numbers)
 
         # Assigning min and max sallary
         if len(numbers) > 1: #If the salary is a range
             min_amount = numbers[0] if numbers[0] < numbers[1] else numbers[1]
-            max_amount = numbers[0] if numbers[0] > numbers[1] else numbers[0]
-        else: #If the salary is fixed (1 value)
+            print("min ammount:", min_amount)
+            max_amount = numbers[0] if numbers[0] > numbers[1] else numbers[1]
+            print("max ammount:",max_amount)
+        elif len(numbers) == 1: #If the salary is fixed (1 value)
             min_amount = numbers[0]
             max_amount = numbers[0]
+        else:
+            min_amount = NA
+            max_amount = NA
 
         # Setting the currency
         for c in currency_values:
             if re.search(c.lower(), salary_text):
-                currency = currency_values[1]
+                currency = currency_values[0]
                 break
         
         # Fallback if the currency of the country portal is not found
@@ -68,7 +78,10 @@ async def parse_salary(page, currency_values, currency_dictionary):
             for c in currency_dictionary:
                 if c.lower() in salary_text:
                     currency = currency_dictionary[c]
-                    break    
+                    break
+        
+        if "currency" not in locals():
+            currency = NA
         
         # Determining salary interval
         if re.search("year", salary_text):
@@ -99,7 +112,7 @@ async def parse_company_logo(page):
     else:
         return NA
 
-async def parse_company_info(page, portal):
+async def parse_company_info(portal, site, page):
     link_locator = page.locator("a[data-automation='company-profile-profile-link']")
 
     if await link_locator.count() > 0:
@@ -108,7 +121,7 @@ async def parse_company_info(page, portal):
         company_url_href = NA
 
     if not pd.isna(company_url_href):
-        company_url = f"https://{portal}.jobstreet.com{company_url_href}"
+        company_url = f"https://{portal}.{site}.com{company_url_href}"
         print(company_url)
         await page.goto(company_url)
 
@@ -155,10 +168,10 @@ async def parse_company_info(page, portal):
     return company_url, company_industry, company_url_direct, company_addresses, company_num_emp, company_description
     
 
-async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_number=1):
+async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-Analyst", page_number=1):
     # Phase 1: Initiate
     print("Initiating JobStreet Scraper")
-    print(f"{portal} {location} {keyword} {page_number}")
+    print(f"{portal} {site} {location} {keyword} {page_number}")
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
             headless=False,
@@ -174,8 +187,8 @@ async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_num
         # Phase 2: Extract all job links
         print("Extracting Job Links")
         for i in range(1, page_number + 1):
-            print(f"https://{portal}.jobstreet.com/{keyword}-jobs/in-{location}?page={i}")
-            await page.goto(f"https://{portal}.jobstreet.com/{keyword}-jobs/in-{location}?page={i}")
+            print(f"https://{portal}.{site}.com/{keyword}-jobs/in-{location}?page={i}")
+            await page.goto(f"https://{portal}.{site}.com/{keyword}-jobs/in-{location}?page={i}")
 
             # Locator is not awaitable, you can only await locator with methods (e.g., .text_content)
             card_links = page.locator("article div._1lns5ab0._6c7qzn50._6c7qzn4y a")
@@ -195,7 +208,9 @@ async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_num
             "ph": ["PHP", "₱"],
             "th": ["THB", "฿"],
             "my": ["MYR", "RM"],
-            "id": ["IDR", "Rp", ]
+            "id": ["IDR", "Rp"],
+            "sg": ["SGD", "$", "S$"],
+            "vn": ["VND", "₫"],
         }
         currency_values = currency_country_dictionary[portal]
 
@@ -210,12 +225,11 @@ async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_num
         for link in job_links:
 
             job_id = link.split("/job/")[1].split("?")[0]
-            site = "jobstreet"
-            job_url = f"https://{portal}.jobstreet.com{link}" 
+            job_url = f"https://{portal}.{site}.com{link}" 
             print(job_url)
             await page.goto(job_url)
 
-            title = (await page.locator("span[data-automation='job-detail-location']").text_content()).strip()
+            title = (await page.locator("h1[data-automation='job-detail-title']").text_content()).strip()
             company = (await page.locator("span[data-automation='advertiser-name']").text_content()).strip()
             location, is_remote, work_setup = await parse_location(page)
             date_posted = await parse_date_posted(page)
@@ -225,7 +239,7 @@ async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_num
             listing_type = link.split("type=")[1].split("&")[0]
             description = (await page.locator("div._1lns5ab0.sye2ly0").text_content()).strip()
             company_logo = await parse_company_logo(page)
-            company_url, company_industry, company_url_direct, company_addresses, company_num_emp, company_description = await parse_company_info(page, portal)
+            company_url, company_industry, company_url_direct, company_addresses, company_num_emp, company_description = await parse_company_info(portal, site, page)
             
             job_data.append({
                 "id": job_id,
@@ -262,6 +276,13 @@ async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_num
         print("Extraction Completed")
         print("Saving data to CSV")
         data_frame = pd.DataFrame(job_data)
+
+        for col in data_frame.columns:
+            if data_frame[col].dtype == "object":
+                data_frame[col] = data_frame[col].apply(
+                    lambda x: x.replace("\n", " ").replace("\r", " ") if isinstance(x, str) else x
+                )
+
         data_frame.to_csv("data/jobstreet_jobs.csv", index=False, quotechar='"', escapechar='\\', encoding='utf-8-sig')
         print("Data saved to CSV")
 
@@ -269,18 +290,25 @@ async def web_scraper(portal="my", location="", keyword="Data-Analyst", page_num
 if __name__ == "__main__":
 
     # User Input
-    print("| = | = | = | JobStreet Web Scraper | = | = | = |")
-    print("List of available Portal")
-    print("my = Malaysia")
-    print("sg = Singapore")
-    print("ph = Philippines")
+    print("| = | = | = | Job Web Scraper | = | = | = |")
+    print("List of available Portal from JobStreet & JobsDB")
+    print("id = Indonesia (JobStreet)")
+    print("my = Malaysia (JobStreet)")
+    print("sg = Singapore (JobStreet)")
+    print("ph = Philippines (JobStreet)")
+    print("th = Thailand (JobsDB)")
     portal = input("Choose a JobStreet Portal: ").lower().strip()
-    location = input("Location: ").strip()
+    location = input("Location (optional): ").strip()
     keyword = input("Job Position: ").strip().replace(" ", "-")
     page_number = int(input("Number of pages you want to scrape: "))
+
+    if portal == "th":
+        site = "jobsdb"
+    else:
+        site = "jobstreet"
 
     # # Test Run
     # asyncio.run(web_scraper())
 
     # Proper Run
-    asyncio.run(web_scraper(portal, location, keyword, page_number))
+    asyncio.run(web_scraper(portal, site, location, keyword, page_number))

@@ -1,4 +1,4 @@
-# JobStreet Web Scraper
+# JobStreet & JobsDB Web Scraper
 
 A Python-based asynchronous web scraper for extracting job listings from JobStreet portals using Playwright.
 
@@ -40,7 +40,7 @@ python job_street_scraper.py
 
 You will be prompted for:
 
--   Portal (e.g., my, ph, sg)
+-   Portal (e.g., id, my, ph, sg, th)
 -   Location (city or leave blank for all)
 -   Job Position
 -   Number of pages to scrape
