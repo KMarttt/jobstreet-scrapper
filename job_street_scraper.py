@@ -172,9 +172,7 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
     print("Initiating JobStreet Scraper")
     print(f"{portal} {site} {location} {keyword} {page_number}")
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(
-            headless=False,
-        )
+        browser = await pw.chromium.launch(headless=False,)
 
         # Configuring the browser to be Incognito (to have clean cookies, cache, etc.)
         context = await browser.new_context()
@@ -298,7 +296,7 @@ if __name__ == "__main__":
     print("th = Thailand (JobsDB)")
     portal = input("Choose a JobStreet Portal: ").lower().strip()
     location = input("Location (optional): ").strip()
-    keyword = input("Job Position: ").strip().replace(" ", "-")
+    keyword = input("Keyword (e.g., data analyst): ").strip().replace(" ", "-")
     page_number = int(input("Number of pages you want to scrape: "))
 
     if portal == "th":
