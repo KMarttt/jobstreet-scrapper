@@ -22,6 +22,20 @@ async def parse_title(page):
 
     return title_text, work_setup, is_remote
 
+async def parse_location(page):
+    # Will get all of the location of the job
+    # location_div = await page.locator("//h2[contains(., 'Job Locations')]/following-sibling::div[1]/div/div/p")
+    location_div = page.locator("//h2[contains(., 'Job Locations')]/following-sibling::div[1]/div")
+
+    locations = []
+    location_count = await location_div.count()
+    for i in range(location_count):
+        location_text = (await location_div.nth(i).locator("p").text_content()).strip()
+        locations.append(location_text)
+    
+
+    return locations
+
 async def parse_date_posted(page):
     date_string = (await page.locator("//label[contains(., 'POSTED DATE')]/following-sibling::p[1]").text_content()).strip()
 
@@ -52,9 +66,7 @@ async def parse_salary(page, currency_values):
         # Assigning min and max sallary
         if len(parsed_numbers) > 1: #If the salary is a range
             min_amount = parsed_numbers[0] if parsed_numbers[0] < parsed_numbers[1] else parsed_numbers[1]
-            print("min ammount:", min_amount)
             max_amount = parsed_numbers[0] if parsed_numbers[0] > parsed_numbers[1] else parsed_numbers[1]
-            print("max ammount:",max_amount)
         elif len(parsed_numbers) == 1: #If the salary is fixed (1 value)
             min_amount = parsed_numbers[0]
             max_amount = parsed_numbers[0]
@@ -81,10 +93,7 @@ async def parse_salary(page, currency_values):
             interval = NA
 
     else:
-        salary_source, interval, min_amount, max_amount, currency = NA, NA, NA, NA, NA
-    
-    print(f"Salary Text: {salary_text} ")
-    
+        salary_source, interval, min_amount, max_amount, currency = NA, NA, NA, NA, NA    
     return salary_source, interval, min_amount, max_amount, currency
 
 async def parse_other_job_data(page):
@@ -108,6 +117,55 @@ async def parse_other_job_data(page):
 
     return year_of_experience, education_level, age_preference, skill, preferred_language, nationality
 
+async def parse_company_info(page):
+
+    company_locator = page.locator("//p[contains(., 'Scam detection')]/parent::div/parent::div/preceding-sibling::div[1]/div[2]/a")
+
+    if await company_locator.count() > 0:
+        company = (await company_locator.text_content()).strip()
+        company_logo = "https://www.vietnamworks.com" + (await page.locator("//p[contains(., 'Scam detection')]/parent::div/parent::div/preceding-sibling::div[1]/div[1]/div[2]/span/img").get_attribute("src"))
+        company_url = await page.locator("//p[contains(., 'Scam detection')]/parent::div/parent::div/preceding-sibling::div[1]/div[2]/a").get_attribute("href")
+        await page.goto(company_url)
+        # print(company)
+        # print(company_logo)
+        print(company_url)
+
+        company_industry_locator =  page.locator("//p[contains(@class, 'type') and contains(., 'Industry')]/following-sibling::p[1]")
+        if await company_industry_locator.count() > 0:
+            company_industry = (await company_industry_locator.text_content()).strip()
+        else:
+            company_industry = NA
+        
+        company_addresses_locator =  page.locator("//p[contains(@class, 'type') and contains(., 'Industry')]/following-sibling::p[1]")
+        if await company_addresses_locator.count() > 0:
+            company_addresses = (await company_addresses_locator.text_content()).strip()
+        else:
+            company_addresses = NA
+        
+        company_num_emp_locator =  page.locator("//p[contains(@class, 'type') and contains(., 'Size')]/following-sibling::p[1]")
+        if await company_num_emp_locator.count() > 0:
+            company_num_emp = (await company_num_emp_locator.text_content()).strip()
+        else:
+            company_num_emp = NA
+
+        read_more_button = page.locator("//h2[contains(., 'About Us')]/following-sibling::div[1]/div/span[contains(., 'Read more')]")
+        while await read_more_button.count() > 0:
+            # Click (force to ensure it's triggered)
+            await read_more_button.click(force=True)
+            
+            # Small wait for the section to expand
+            await page.wait_for_timeout(500)
+
+        company_description = (await page.locator("//h2[contains(., 'About Us')]/following-sibling::div[1]/div/p").text_content()).strip()        
+
+        # print(company_industry)
+        # print(company_addresses)
+        # print(company_num_emp)
+        # print(company_description)
+    else:
+        company, company_industry, company_url, company_logo, company_addresses, company_num_emp, company_description = NA, NA, NA, NA, NA, NA, NA, NA
+    
+    return company, company_industry, company_url, company_logo, company_addresses, company_num_emp, company_description
 
 async def web_scraper(keyword="data-analyst", page_number=1):
     # Phase 1: Initiate
@@ -143,6 +201,7 @@ async def web_scraper(keyword="data-analyst", page_number=1):
 
         currency_values = {
             "đ": "VND",
+            "₫": "VND",
             "VND": "VND",
             "$": "USD",
             "USD": "USD"
@@ -150,37 +209,39 @@ async def web_scraper(keyword="data-analyst", page_number=1):
 
         # Phase 3: Extract Job Details
         print("\nExtracting Job Details")
-        for link in job_links:
-            
+        for link in job_links:   
             job_id = re.search(r"-(\d+)-jd", link).group(1)
             job_url = f"https://www.vietnamworks.com/{link}"
             print(job_url)
             await page.goto(job_url, wait_until="domcontentloaded")
-            
-            # Click "Xem thêm" to see more and expand the section
-            see_more_button = page.locator("//h2[contains(., 'Job Information')]/following-sibling::div[last()]/div[1]//button[contains(., 'View more')]")
-            await see_more_button.scroll_into_view_if_needed()
+            site_buttons = []
+            # Click "View more" to see more and expand the section
+            site_buttons.append(page.locator("//h2[contains(., 'Job Information')]/following-sibling::div[last()]/div[1]//button[contains(., 'View more')]"))
+            site_buttons.append(page.locator("//button[contains(., 'View full job description')]"))
 
             # Try clicking until the button is clicked (idk why sometimes it's not being clicked)
-            while await see_more_button.count() > 0:
-                await see_more_button.hover()
-                
-                # Click (force to ensure it's triggered)
-                await see_more_button.click(force=True)
-                
-                # Small wait for the section to expand
-                await page.wait_for_timeout(500)
+            for button in site_buttons:
+                while await button.is_visible():
+                    await button.hover()
+                    
+                    # Click (force to ensure it's triggered)
+                    await button.click(force=True)
+                    
+                    # Small wait for the section to expand
+                    await page.wait_for_timeout(500)
 
             title, work_setup, is_remote = await parse_title(page)
-            # company
-            location = (await page.locator("//h2[contains(., 'Job Locations')]/following-sibling::div[1]/div/div/p").text_content()).strip()
+            location = await parse_location(page)
             date_posted = await parse_date_posted(page)
             job_type = (await page.locator("//label[contains(., 'WORKING TYPE')]/following-sibling::p[1]").text_content()).strip()
             salary_source, interval, min_amount, max_amount, currency = await parse_salary(page, currency_values)
             job_level = (await page.locator("//label[contains(., 'JOB LEVEL')]/following-sibling::p[1]").text_content()).strip()
             job_function = (await page.locator("//label[contains(., 'JOB FUNCTION')]/following-sibling::p[1]").text_content()).strip()
             year_of_experience, education_level, age_preference, skill, preferred_language, nationality = await parse_other_job_data(page)
-
+            description = (await page.locator("//h2[contains(., 'Job description')]/parent::div").text_content()).strip()
+            requirement = (await page.locator("//h2[contains(., 'Job requirements')]/parent::div").text_content()).strip()
+            company, company_industry, company_url, company_logo, company_addresses, company_num_emp, company_description = await parse_company_info(page)
+            
             # # print(f"Job ID: {job_id}")
             # print(f"Title: {title}")
             # print(f"Location: {location}")
@@ -188,14 +249,13 @@ async def web_scraper(keyword="data-analyst", page_number=1):
             # print(f"Job Type: {job_type}")
             # print(f"Salary Source: {salary_source}; Interval: {interval}; Min Amount: {min_amount}; Max Amount: {max_amount}; Currency: {currency}")
 
-
             job_data.append({
                 "id": job_id,
                 "site": "vietnamworks",
                 "job_url": job_url,
                 "job_url_direct": NA,
                 "title": title,
-                # company
+                "company": company,
                 "location": location,
                 "date_posted": date_posted,
                 "job_type": job_type,
@@ -216,8 +276,15 @@ async def web_scraper(keyword="data-analyst", page_number=1):
                 "nationality": nationality,
                 "listing_type": NA,
                 "emails": NA,
-                # job description
-                # more company info
+                "description": description,
+                "requirement": requirement,
+                "company_industry": company_industry,
+                "company_url": company_url,
+                "company_logo": company_logo,
+                "company_url_direct": NA,
+                "company_addresses": company_addresses,
+                "company_num_emp": company_num_emp,
+                "company_description": company_description,
             })
         
         print("Extraction Completed")
@@ -232,7 +299,6 @@ async def web_scraper(keyword="data-analyst", page_number=1):
 
         data_frame.to_csv(f"data/vietnamworks_vn_{keyword}.csv", index=False, quotechar='"', escapechar='\\', encoding='utf-8-sig')
         print("Data saved to CSV")
-
 
 # TODO: Learn how to translate (for multiple request a day)
 # Run the Function
