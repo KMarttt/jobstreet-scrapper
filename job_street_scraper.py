@@ -164,7 +164,7 @@ async def parse_company_info(portal, site, page):
         company_num_emp = NA
         company_description = NA
 
-    return company_url, company_industry, company_url_direct, company_addresses, company_num_emp, company_description
+    return company_industry, company_url, company_url_direct, company_addresses, company_num_emp, company_description
     
 
 async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-Analyst", page_number=1):
@@ -236,7 +236,7 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
             listing_type = link.split("type=")[1].split("&")[0]
             description = (await page.locator("div._1lns5ab0.sye2ly0").text_content()).strip()
             company_logo = await parse_company_logo(page)
-            company_url, company_industry, company_url_direct, company_addresses, company_num_emp, company_description = await parse_company_info(portal, site, page)
+            company_industry, company_url, company_url_direct, company_addresses, company_num_emp, company_description = await parse_company_info(portal, site, page)
             
             job_data.append({
                 "id": job_id,

@@ -163,7 +163,7 @@ async def parse_company_info(page):
         # print(company_num_emp)
         # print(company_description)
     else:
-        company, company_industry, company_url, company_logo, company_addresses, company_num_emp, company_description = NA, NA, NA, NA, NA, NA, NA, NA
+        company, company_industry, company_url, company_logo, company_addresses, company_num_emp, company_description = NA, NA, NA, NA, NA, NA, NA
     
     return company, company_industry, company_url, company_logo, company_addresses, company_num_emp, company_description
 
