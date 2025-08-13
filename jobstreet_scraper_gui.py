@@ -143,21 +143,6 @@ class JobScraperGUI:
             params_frame, textvariable=self.keyword_var, width=50)
         keyword_entry.pack(fill='x', pady=(5, 10))
 
-        # Number of pages
-        tk.Label(params_frame, text="Number of Pages (1-10):").pack(anchor='w')
-        self.pages_var = tk.StringVar(value="1")
-        pages_frame = tk.Frame(params_frame)
-        pages_frame.pack(fill='x', pady=(5, 0))
-
-        pages_spinbox = tk.Spinbox(
-            pages_frame,
-            from_=1,
-            to=10,
-            textvariable=self.pages_var,
-            width=10
-        )
-        pages_spinbox.pack(side='left')
-
         # Control buttons frame
         control_frame = tk.Frame(self.single_tab)
         control_frame.pack(fill='x', padx=10, pady=10)
@@ -224,31 +209,31 @@ class JobScraperGUI:
     def create_batch_test_tab(self):
         # Predefined test configurations
         test_configs = {
-            "Quick Test (5 jobs)": [
+            "Quick Test": [
                 {"portal": "ph", "location": "Metro Manila",
-                    "keyword": "Data-Analyst", "pages": 1},
+                    "keyword": "Data-Analyst"},
                 {"portal": "my", "location": "Kuala Lumpur",
-                    "keyword": "Software-Engineer", "pages": 1},
+                    "keyword": "Software-Engineer"},
             ],
             "Comprehensive Test (All Portals)": [
                 {"portal": "ph", "location": "Metro Manila",
-                    "keyword": "Data-Analyst", "pages": 1},
+                    "keyword": "Data-Analyst"},
                 {"portal": "my", "location": "Kuala Lumpur",
-                    "keyword": "Software-Engineer", "pages": 1},
+                    "keyword": "Software-Engineer"},
                 {"portal": "sg", "location": "",
-                    "keyword": "Marketing-Manager", "pages": 1},
+                    "keyword": "Marketing-Manager"},
                 {"portal": "th", "location": "Bangkok",
-                    "keyword": "Product-Manager", "pages": 1},
+                    "keyword": "Product-Manager"},
                 {"portal": "id", "location": "Jakarta",
-                    "keyword": "Business-Analyst", "pages": 1},
+                    "keyword": "Business-Analyst"},
             ],
             "Job-Specific Test": [
                 {"portal": "sg", "location": "",
-                    "keyword": "Python-Developer", "pages": 1},
+                    "keyword": "Python-Developer"},
                 {"portal": "my", "location": "",
-                    "keyword": "Machine-Learning-Engineer", "pages": 1},
+                    "keyword": "Machine-Learning-Engineer"},
                 {"portal": "ph", "location": "",
-                    "keyword": "Digital-Marketing", "pages": 1},
+                    "keyword": "Digital-Marketing"},
             ]
         }
 
@@ -310,7 +295,7 @@ class JobScraperGUI:
 • Comprehensive Test: Tests all 5 available portals 
 • Job-Specific Test: Tests tech-focused positions across portals
 
-All batch tests use 1 page per search to minimize load. Results will appear in the Output Log tab.
+All batch tests will scrape available job listings. Results will appear in the Output Log tab.
 You can monitor progress and view detailed logs during execution."""
 
         batch_info_label = tk.Label(
@@ -539,16 +524,6 @@ For support and updates, check the documentation."""
             messagebox.showerror("Error", "Please enter a job keyword")
             return False
 
-        try:
-            pages = int(self.pages_var.get())
-            if pages < 1 or pages > 10:
-                messagebox.showerror("Error", "Pages must be between 1 and 10")
-                return False
-        except ValueError:
-            messagebox.showerror(
-                "Error", "Please enter a valid number of pages")
-            return False
-
         return True
 
     def start_scraping(self):
@@ -582,18 +557,17 @@ For support and updates, check the documentation."""
         # Get parameters
         location = self.location_var.get().strip()
         keyword = self.keyword_var.get().strip().replace(' ', '-')
-        pages = int(self.pages_var.get())
         site = "jobsdb" if portal == "th" else "jobstreet"
 
         # Start scraping in separate thread
         self.current_thread = threading.Thread(
             target=self.run_scraper,
-            args=(portal, site, location, keyword, pages),
+            args=(portal, site, location, keyword),
             daemon=True
         )
         self.current_thread.start()
 
-    def run_scraper(self, portal, site, location, keyword, pages):
+    def run_scraper(self, portal, site, location, keyword):
         """Run the scraper in a separate thread"""
         try:
             self.log_output("🚀 Starting JobStreet/JobsDB Scraper")
@@ -601,7 +575,6 @@ For support and updates, check the documentation."""
             self.log_output(f"Site: {site}")
             self.log_output(f"Location: {location or 'Not specified'}")
             self.log_output(f"Keyword: {keyword}")
-            self.log_output(f"Pages: {pages}")
             self.log_output("-" * 50)
 
             if web_scraper is None:
@@ -611,11 +584,8 @@ For support and updates, check the documentation."""
                 self.log_output("📊 Simulating scraping process...")
 
                 import time
-                for i in range(1, pages + 1):
-                    if not self.is_running:
-                        break
-                    self.log_output(f"📄 Processing page {i}/{pages}")
-                    time.sleep(2)
+                self.log_output("🔄 Processing job listings...")
+                time.sleep(3)
 
                 self.log_output("✅ Demo scraping completed!")
                 self.log_output(
@@ -626,7 +596,7 @@ For support and updates, check the documentation."""
                 asyncio.set_event_loop(loop)
                 try:
                     loop.run_until_complete(
-                        web_scraper(portal, site, location, keyword, pages)
+                        web_scraper(portal, site, location, keyword)
                     )
                     self.log_output("✅ Scraping completed successfully!")
                 finally:
@@ -722,8 +692,7 @@ For support and updates, check the documentation."""
                                     config['portal'],
                                     site,
                                     config['location'],
-                                    config['keyword'],
-                                    config['pages']
+                                    config['keyword']
                                 )
                             )
                         finally:
