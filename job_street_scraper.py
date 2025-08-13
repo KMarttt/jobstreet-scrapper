@@ -177,7 +177,7 @@ async def parse_company_info(portal, site, page):
     return company_url, company_industry, company_url_direct, company_addresses, company_num_emp, company_description
 
 
-async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-Analyst", max_pages=50):
+async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-Analyst", max_pages=2):
     # Phase 1: Initiate
     print("Initiating JobStreet Scraper")
     print(f"{portal} {site} {location} {keyword}")
@@ -316,7 +316,7 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
                     "id": job_id,
                     "site": site,
                     "job_url": job_url,
-                    "job_url_direct": NA,
+                    # "job_url_direct": NA,
                     "title": title,
                     "company": company,
                     "location": location,
@@ -329,19 +329,19 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
                     "currency": currency,
                     "is_remote": is_remote,
                     "work_setup": work_setup,
-                    "job_level": NA,
+                    # "job_level": NA,
                     "job_function": job_function,
                     "listing_type": listing_type,
-                    "emails": NA,
-                    "description": description,
-                    "company_industry": company_industry,
-                    "company_url": company_url,
-                    "company_logo": company_logo,
-                    "company_url_direct": company_url_direct,
-                    "company_addresses": company_addresses,
-                    "company_num_emp": company_num_emp,
-                    "company_revenue": NA,
-                    "company_description": company_description,
+                    # "emails": NA,
+                    # "description": description,
+                    # "company_industry": company_industry,
+                    # "company_url": company_url,
+                    # "company_logo": company_logo,
+                    # "company_url_direct": company_url_direct,
+                    # "company_addresses": company_addresses,
+                    # "company_num_emp": company_num_emp,
+                    # "company_revenue": NA,
+                    # "company_description": company_description,
                 })
 
             except Exception as e:
