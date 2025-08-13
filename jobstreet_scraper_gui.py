@@ -63,6 +63,11 @@ class JobScraperGUI:
         notebook.add(self.batch_tab, text="Batch Testing")
         self.create_batch_test_tab()
 
+        # Output Tab
+        self.output_tab = ttk.Frame(notebook)
+        notebook.add(self.output_tab, text="Output Log")
+        self.create_output_tab()
+
         # Settings Tab
         self.settings_tab = ttk.Frame(notebook)
         notebook.add(self.settings_tab, text="Settings")
@@ -200,22 +205,21 @@ class JobScraperGUI:
         )
         self.results_button.pack(side='right')
 
-        # Output frame
-        output_frame = tk.LabelFrame(
-            self.single_tab, text="Output Log", padx=10, pady=10)
-        output_frame.pack(fill='both', expand=True, padx=10, pady=5)
+        # Quick status info for single search
+        status_info_frame = tk.LabelFrame(
+            self.single_tab, text="Quick Info", padx=10, pady=10)
+        status_info_frame.pack(fill='x', padx=10, pady=5)
 
-        # Output text area
-        self.output_text = scrolledtext.ScrolledText(
-            output_frame,
-            wrap=tk.WORD,
-            width=80,
-            height=15,
-            font=('Courier', 9),
-            bg='#2c3e50',
-            fg='#ecf0f1'
+        self.quick_info_var = tk.StringVar(
+            value="Configure your search parameters above and click 'Start Scraping'")
+        quick_info_label = tk.Label(
+            status_info_frame,
+            textvariable=self.quick_info_var,
+            font=('Arial', 9),
+            wraplength=600,
+            justify='left'
         )
-        self.output_text.pack(fill='both', expand=True)
+        quick_info_label.pack(anchor='w')
 
     def create_batch_test_tab(self):
         # Predefined test configurations
@@ -282,19 +286,135 @@ class JobScraperGUI:
         )
         self.batch_start_button.pack(side='left', padx=(0, 10))
 
-        # Results display
-        batch_output_frame = tk.LabelFrame(
-            self.batch_tab, text="Test Results", padx=10, pady=10)
-        batch_output_frame.pack(fill='both', expand=True, padx=10, pady=5)
+        # Clear batch output button
+        clear_batch_button = tk.Button(
+            batch_control_frame,
+            text="🗑️ Clear Log",
+            command=lambda: self.batch_output_text.delete(1.0, tk.END),
+            bg='#95a5a6',
+            fg='white',
+            font=('Arial', 10),
+            padx=15,
+            pady=8
+        )
+        clear_batch_button.pack(side='right')
 
-        self.batch_output_text = scrolledtext.ScrolledText(
-            batch_output_frame,
+        # Batch test info
+        batch_info_frame = tk.LabelFrame(
+            self.batch_tab, text="Batch Test Info", padx=10, pady=10)
+        batch_info_frame.pack(fill='both', expand=True, padx=10, pady=5)
+
+        batch_info_text = """Batch Testing allows you to run multiple scraping jobs automatically.
+
+• Quick Test: Tests 2 different portals with common job titles
+• Comprehensive Test: Tests all 5 available portals 
+• Job-Specific Test: Tests tech-focused positions across portals
+
+All batch tests use 1 page per search to minimize load. Results will appear in the Output Log tab.
+You can monitor progress and view detailed logs during execution."""
+
+        batch_info_label = tk.Label(
+            batch_info_frame,
+            text=batch_info_text,
+            justify='left',
+            font=('Arial', 10),
+            wraplength=600
+        )
+        batch_info_label.pack(anchor='w', pady=10)
+
+    def create_output_tab(self):
+        # Output controls frame
+        output_controls_frame = tk.Frame(self.output_tab)
+        output_controls_frame.pack(fill='x', padx=10, pady=5)
+
+        # Tab selector for different output types
+        output_type_frame = tk.LabelFrame(
+            output_controls_frame, text="Output Type", padx=10, pady=5)
+        output_type_frame.pack(side='left', fill='y')
+
+        self.output_type_var = tk.StringVar(value="single")
+
+        tk.Radiobutton(
+            output_type_frame,
+            text="Single Search Log",
+            variable=self.output_type_var,
+            value="single",
+            command=self.switch_output_view,
+            font=('Arial', 9)
+        ).pack(anchor='w')
+
+        tk.Radiobutton(
+            output_type_frame,
+            text="Batch Test Log",
+            variable=self.output_type_var,
+            value="batch",
+            command=self.switch_output_view,
+            font=('Arial', 9)
+        ).pack(anchor='w')
+
+        # Output controls
+        controls_frame = tk.Frame(output_controls_frame)
+        controls_frame.pack(side='right', fill='y')
+
+        # Clear button
+        clear_button = tk.Button(
+            controls_frame,
+            text="🗑️ Clear Log",
+            command=self.clear_current_output,
+            bg='#95a5a6',
+            fg='white',
+            font=('Arial', 10),
+            padx=15,
+            pady=8
+        )
+        clear_button.pack(side='top', padx=5)
+
+        # Auto-scroll toggle
+        self.auto_scroll_var = tk.BooleanVar(value=True)
+        auto_scroll_check = tk.Checkbutton(
+            controls_frame,
+            text="Auto-scroll",
+            variable=self.auto_scroll_var,
+            font=('Arial', 9)
+        )
+        auto_scroll_check.pack(side='top', padx=5, pady=5)
+
+        # Single search output frame
+        self.single_output_frame = tk.LabelFrame(
+            self.output_tab, text="Single Search Output", padx=10, pady=10)
+        self.single_output_frame.pack(
+            fill='both', expand=True, padx=10, pady=5)
+
+        # Single search output text area
+        self.output_text = scrolledtext.ScrolledText(
+            self.single_output_frame,
             wrap=tk.WORD,
+            width=80,
+            height=20,
+            font=('Courier', 9),
+            bg='#2c3e50',
+            fg='#ecf0f1'
+        )
+        self.output_text.pack(fill='both', expand=True)
+
+        # Batch test output frame
+        self.batch_output_frame = tk.LabelFrame(
+            self.output_tab, text="Batch Test Output", padx=10, pady=10)
+
+        # Batch test output text area
+        self.batch_output_text = scrolledtext.ScrolledText(
+            self.batch_output_frame,
+            wrap=tk.WORD,
+            width=80,
+            height=20,
             font=('Courier', 9),
             bg='#2c3e50',
             fg='#ecf0f1'
         )
         self.batch_output_text.pack(fill='both', expand=True)
+
+        # Initially show single search output
+        self.switch_output_view()
 
     def create_settings_tab(self):
         # Browser settings
@@ -350,6 +470,7 @@ Features:
 • Real-time progress monitoring
 • CSV export functionality
 • Company information extraction
+• Dedicated output logging with separate views
 
 Requirements:
 • Python 3.7+
@@ -368,6 +489,24 @@ For support and updates, check the documentation."""
         )
         about_label.pack(anchor='w', pady=10)
 
+    def switch_output_view(self):
+        """Switch between single and batch output views"""
+        if self.output_type_var.get() == "single":
+            self.batch_output_frame.pack_forget()
+            self.single_output_frame.pack(
+                fill='both', expand=True, padx=10, pady=5)
+        else:
+            self.single_output_frame.pack_forget()
+            self.batch_output_frame.pack(
+                fill='both', expand=True, padx=10, pady=5)
+
+    def clear_current_output(self):
+        """Clear the currently visible output"""
+        if self.output_type_var.get() == "single":
+            self.output_text.delete(1.0, tk.END)
+        else:
+            self.batch_output_text.delete(1.0, tk.END)
+
     def log_output(self, message, text_widget=None):
         """Add message to output log"""
         if text_widget is None:
@@ -377,7 +516,10 @@ For support and updates, check the documentation."""
         formatted_message = f"[{timestamp}] {message}\n"
 
         text_widget.insert(tk.END, formatted_message)
-        text_widget.see(tk.END)
+
+        if self.auto_scroll_var.get():
+            text_widget.see(tk.END)
+
         self.root.update_idletasks()
 
     def get_portal_code(self):
@@ -419,8 +561,12 @@ For support and updates, check the documentation."""
                 "Warning", "Scraping is already in progress")
             return
 
-        # Clear output
+        # Clear single search output
         self.output_text.delete(1.0, tk.END)
+
+        # Switch to output tab and single search view
+        self.output_type_var.set("single")
+        self.switch_output_view()
 
         # Update UI state
         self.is_running = True
@@ -428,8 +574,12 @@ For support and updates, check the documentation."""
         self.stop_button.config(state='normal')
         self.status_var.set("Scraping in progress...")
 
-        # Get parameters
+        # Update quick info
         portal = self.get_portal_code()
+        self.quick_info_var.set(
+            f"Scraping {portal.upper()} for '{self.keyword_var.get()}' - Check Output Log tab for details")
+
+        # Get parameters
         location = self.location_var.get().strip()
         keyword = self.keyword_var.get().strip().replace(' ', '-')
         pages = int(self.pages_var.get())
@@ -457,7 +607,7 @@ For support and updates, check the documentation."""
             if web_scraper is None:
                 # Demo mode
                 self.log_output(
-                    "⚠️  Running in DEMO mode - job_street_scraper.py not found")
+                    "⚠️ Running in DEMO mode - job_street_scraper.py not found")
                 self.log_output("📊 Simulating scraping process...")
 
                 import time
@@ -502,6 +652,8 @@ For support and updates, check the documentation."""
         self.start_button.config(state='normal')
         self.stop_button.config(state='disabled')
         self.status_var.set("Ready to scrape")
+        self.quick_info_var.set(
+            "Configure your search parameters above and click 'Start Scraping'")
 
     def start_batch_test(self, test_configs):
         """Start batch testing"""
@@ -517,12 +669,15 @@ For support and updates, check the documentation."""
 
         configs = test_configs[selected_suite]
 
-        # Clear output
+        # Clear batch output and switch to it
         self.batch_output_text.delete(1.0, tk.END)
+        self.output_type_var.set("batch")
+        self.switch_output_view()
 
         # Update UI
         self.is_running = True
         self.batch_start_button.config(state='disabled')
+        self.status_var.set("Running batch tests...")
 
         # Start batch test in separate thread
         threading.Thread(
@@ -602,6 +757,7 @@ For support and updates, check the documentation."""
         """Reset batch test UI"""
         self.is_running = False
         self.batch_start_button.config(state='normal')
+        self.status_var.set("Ready to scrape")
 
     def browse_output_dir(self):
         """Browse for output directory"""
