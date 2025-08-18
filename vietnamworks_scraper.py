@@ -16,7 +16,6 @@ async def parse_text_content(page, selector):
 
 async def parse_title(page):
     # Will get the job title, and occasionally the work setup info
-    # title_text = (await page.locator("h1[name='title']").text_content()).strip()
     title_text = await parse_text_content(
         page,
         "h1[name='title']"
@@ -236,7 +235,7 @@ async def parse_company_info(page):
 
     if await company_locator.count() > 0:
         company = (await company_locator.text_content()).strip()
-        
+
         company_logo = "https://www.vietnamworks.com" + (await page.locator(
             "//p[contains(., 'Scam detection')]/parent::div/parent::div/preceding-sibling::div[1]/div[1]/div[2]/span/img"
         ).get_attribute("src"))
@@ -287,10 +286,10 @@ async def parse_company_info(page):
     
     return company, company_industry, company_url, company_logo, company_addresses, company_num_emp, company_description
 
-async def web_scraper(keyword="data-analyst", page_number=1):
+async def web_scraper(keyword="data-analyst", max_pages=50):
     # Phase 1: Initiate
     print("Initiating Vietnam Works Scraper")
-    print(f"{keyword} {page_number}")
+    print(f"{keyword} {max_pages}")
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=False)
 
@@ -299,24 +298,100 @@ async def web_scraper(keyword="data-analyst", page_number=1):
         # Open new page
         page = await context.new_page()
         job_links = []
+        seen_links = set() # To avoid duplicate job links
         job_data = []
+        
 
         # Phase 2: Extract all job links
         print("Extracting Job Links")
-        for i in range(1, page_number + 1):
-            await page.goto(f"https://www.vietnamworks.com/jobs?q={keyword}&page={i}&sorting=relevant")
+        current_page = 1
+        consecutive_empty_pages = 0
+        max_consecutive_empty = 3 # Stop if we encounter 3 consecutive empty pages
 
-            await page.wait_for_selector("a.img_job_card", timeout=10000)
-            job_item_links = page.locator("a.img_job_card")
+        while current_page <= max_pages and consecutive_empty_pages < max_consecutive_empty:
+            url = f"https://www.vietnamworks.com/jobs?q={keyword}&page={current_page}&sorting=relevant"
+            print(f"Scraping page {current_page}: {url}")
+
+            try:
+                await page.goto(url, timeout=30000) # 30 second timeouut
+
+                card_links = page.locator(
+                    "a.img_job_card"
+                )
+
+                # Get the count of job links on current page
+                link_count = await card_links.count()
+
+                if link_count == 0:
+                    consecutive_empty_pages += 1
+                    print(
+                        f"No job links found on page {current_page}. Empty pages count: {consecutive_empty_pages}"
+                    )
+                
+                    # Check if we've reached the end 
+                    no_result_indicator = page.locator(
+                        "//div[@class='noResultWrapper animated fadeIn']/div/h2[contains(., 'We have not found jobs for this search at the moment')]"
+                    )
+
+                    page_reached_end = False
+                    if await no_result_indicator.count() > 0:
+                        consecutive_empty_pages += 1
+                        print(
+                            f"End of results detected on page {current_page}"
+                        )
+                        page_reached_end = True
+                        break
+
+                    if page_reached_end:
+                        print("Reached end of job listings")
+                        break
+                else:
+                    consecutive_empty_pages = 0
+                    page_job_links = []
+
+                    for link_index in range(link_count):
+                        link_href = await card_links.nth(link_index).get_attribute("href")
+                        if link_href and link_href not in seen_links:
+                            job_links.append(link_href)
+                            seen_links.add(link_href)
+                            page_job_links.append(link_href)
+
+                    print(
+                        f"Found {len(page_job_links)} job links on page {current_page}"
+                    )
+
+            except Exception as e:
+                print(f"Error scraping page {current_page}: {str(e)}")
+                consecutive_empty_pages += 1
             
-            link_count = await job_item_links.count()
+            current_page += 1
+                
 
-            for link in range(link_count):
-                print(await job_item_links.nth(link).get_attribute('href'))
-                job_links.append(await job_item_links.nth(link).get_attribute('href'))
+
+        print(
+            f"\nTotal Job Links collected: {len(job_links)} from {current_page - 1} pages"
+        )
+        print(f"Unique Job Links collected: {len(seen_links)}")
+
+        if not job_links:
+            print("No job links found")
+            await browser.close()
+            return
+
+        # for i in range(1, max_pages + 1):
+        #     await page.goto(f"https://www.vietnamworks.com/jobs?q={keyword}&page={i}&sorting=relevant")
+
+        #     await page.wait_for_selector("a.img_job_card", timeout=10000)
+        #     job_item_links = page.locator("a.img_job_card")
+            
+        #     link_count = await job_item_links.count()
+
+        #     for link in range(link_count):
+        #         print(await job_item_links.nth(link).get_attribute('href'))
+        #         job_links.append(await job_item_links.nth(link).get_attribute('href'))
         
-        print(job_links)
-        print(f"# of job links: {len(job_links)}")
+        # print(job_links)
+        # print(f"# of job links: {len(job_links)}")
 
 
         currency_values = {
@@ -464,7 +539,11 @@ if __name__ == "__main__":
     # User Input
     print("| = | = | = | Vietnam Works Web Scraper | = | = | = |")
     keyword = input("Keyword (e.g., data analyst): ").strip().replace(" ", "-")
-    page_number = int(input("Number of pages you want to scrape: "))
+    # page_number = int(input("Number of pages you want to scrape: "))
+    max_pages = int(input("Maximum pages to scrape (default 50): ") or "50")
 
-    # Proper Run
-    asyncio.run(web_scraper(keyword, page_number))
+    # # Proper Run
+    # asyncio.run(web_scraper(keyword, max_pages))
+
+    # Test Run
+    asyncio.run(web_scraper())
