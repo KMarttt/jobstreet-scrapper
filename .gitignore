@@ -26,6 +26,6 @@ old_csv_job_translator
 
 jobnet_scraper.py
 jobnew_scraper_test.py
-job_street_scraper
+job_street_scraper.py
 
 .vscode
