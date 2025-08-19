@@ -14,10 +14,10 @@ async def parse_date_posted(page):
     relative_date_text = date_text.replace("Posted", "").replace("ago", "").strip()
     print(f"Relative date text: {relative_date_text!r}")
 
-    if "d" in relative_date_text: # if the date is in days
+    if "day" in relative_date_text: # if the date is in days
         days = int(re.sub(r"[^\d]", "", relative_date_text))
         return (current_date - timedelta(days=days)).strftime(r"%Y-%m-%d")
-    elif "h" in relative_date_text: # If the date is in hour(s) ago
+    elif "hour" in relative_date_text: # If the date is in hour(s) ago
         return current_date.strftime(r"%Y-%m-%d")
     else: # If the date is in minute(s) or second(s)
         return current_date.strftime(r"%Y-%m-%d")
@@ -58,6 +58,12 @@ async def parse_salary(page, currency_values, currency_dictionary):
             print("min ammount:", min_amount)
             max_amount = numbers[0] if numbers[0] > numbers[1] else numbers[1]
             print("max ammount:",max_amount)
+        elif "up to" in salary_text:
+            min_amount = 0
+            max_amount = numbers[0]
+        elif "starting from" in salary_text:
+            min_amount = numbers[0]
+            max_amount = 0
         elif len(numbers) == 1: #If the salary is fixed (1 value)
             min_amount = numbers[0]
             max_amount = numbers[0]
