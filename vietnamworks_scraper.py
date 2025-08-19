@@ -14,38 +14,16 @@ async def parse_text_content(page, selector):
     else:
         return NA
 
-async def parse_title(page):
-    # Will get the job title, and occasionally the work setup info
-    title_text = await parse_text_content(
-        page,
-        "h1[name='title']"
-    )
-    
-    title_text_lower = title_text.lower()
 
-    if "work from home" in title_text_lower or "wfh" in title_text_lower or "remote" in title_text_lower:
-        work_setup = "remote"
-        is_remote = True
-    elif "hybrid" in title_text_lower:
-        work_setup = "hybrid"
-        is_remote = False
-    else:
-        is_remote = NA
-        work_setup = NA
+async def parse_location(page, selector):
+    # Get the job location(s)
+    location_div = page.locator(selector)
 
-    return title_text, work_setup, is_remote
-
-async def parse_location(page):
-    # Will get all of the job location
-    location_div = page.locator(
-        "//h2[contains(., 'Job Locations')]/following-sibling::div[1]/div"
-    )
-
-    # Count the number of locations
+    # Count the number of location_div
     location_count = await location_div.count()
 
     if location_count > 0:
-        # If there is more than 1 location, insert them into a list
+        # Insert location(s) into a list
         locations = []
         for i in range(location_count):
             location_text = (await location_div.nth(i).locator("p").text_content()).strip()
@@ -55,11 +33,8 @@ async def parse_location(page):
     
     return locations
 
-async def parse_date_posted(page):
-    date_posted_text = await parse_text_content(
-        page,
-        "//label[contains(., 'POSTED DATE')]/following-sibling::p[1]"
-    )
+async def parse_date_posted(page, selector):
+    date_posted_text = await parse_text_content(page, selector)
 
     if not pd.isna(date_posted_text):
 
@@ -187,7 +162,6 @@ async def parse_salary(page, currency_values):
         print(f"Salary: {salary_text}")
         return NA, NA, NA, NA, NA
 
-    
     return salary_source, interval, min_amount, max_amount, currency 
 
 async def parse_other_job_data(page):
@@ -266,7 +240,7 @@ async def parse_company_info(page):
         
         company_addresses = await parse_text_content(
             page, 
-            "//p[contains(@class, 'type') and contains(., 'Industry')]/following-sibling::p[1]"
+            "//p[contains(@class, 'type') and contains(., 'Address')]/following-sibling::div/div"
         )
         
         company_num_emp = await parse_text_content(
@@ -286,7 +260,7 @@ async def parse_company_info(page):
     
     return company, company_industry, company_url, company_logo, company_addresses, company_num_emp, company_description
 
-async def web_scraper(keyword="data-analyst", max_pages=50):
+async def web_scraper(keyword="data-analyst", max_pages=2):
     # Phase 1: Initiate
     print("Initiating Vietnam Works Scraper")
     print(f"{keyword} {max_pages}")
@@ -313,8 +287,19 @@ async def web_scraper(keyword="data-analyst", max_pages=50):
             print(f"Scraping page {current_page}: {url}")
 
             try:
-                await page.goto(url, timeout=30000) # 30 second timeouut
+                await page.goto(url, timeout = 30000) # 30 second timeouut
 
+                try:
+                    await page.wait_for_selector(
+                        "a.img_job_card",
+                        timeout=10000
+                    )
+                except Exception:
+                    print(f"Timeout waiting for results on page {current_page}")
+                    consecutive_empty_pages += 1
+                    current_page += 1
+                    continue
+                
                 card_links = page.locator(
                     "a.img_job_card"
                 )
@@ -340,13 +325,13 @@ async def web_scraper(keyword="data-analyst", max_pages=50):
                             f"End of results detected on page {current_page}"
                         )
                         page_reached_end = True
-                        break
+                        # break -- i think we can delete this
 
                     if page_reached_end:
                         print("Reached end of job listings")
                         break
                 else:
-                    consecutive_empty_pages = 0
+                    consecutive_empty_pages = 0 # Reset counter if we found jobs
                     page_job_links = []
 
                     for link_index in range(link_count):
@@ -357,7 +342,7 @@ async def web_scraper(keyword="data-analyst", max_pages=50):
                             page_job_links.append(link_href)
 
                     print(
-                        f"Found {len(page_job_links)} job links on page {current_page}"
+                        f"Found {len(page_job_links)} new job links on page {current_page}"
                     )
 
             except Exception as e:
@@ -366,8 +351,6 @@ async def web_scraper(keyword="data-analyst", max_pages=50):
             
             current_page += 1
                 
-
-
         print(
             f"\nTotal Job Links collected: {len(job_links)} from {current_page - 1} pages"
         )
@@ -377,21 +360,6 @@ async def web_scraper(keyword="data-analyst", max_pages=50):
             print("No job links found")
             await browser.close()
             return
-
-        # for i in range(1, max_pages + 1):
-        #     await page.goto(f"https://www.vietnamworks.com/jobs?q={keyword}&page={i}&sorting=relevant")
-
-        #     await page.wait_for_selector("a.img_job_card", timeout=10000)
-        #     job_item_links = page.locator("a.img_job_card")
-            
-        #     link_count = await job_item_links.count()
-
-        #     for link in range(link_count):
-        #         print(await job_item_links.nth(link).get_attribute('href'))
-        #         job_links.append(await job_item_links.nth(link).get_attribute('href'))
-        
-        # print(job_links)
-        # print(f"# of job links: {len(job_links)}")
 
 
         currency_values = {
@@ -434,9 +402,19 @@ async def web_scraper(keyword="data-analyst", max_pages=50):
                     # Small wait for the section to expand
                     await page.wait_for_timeout(500)
 
-            title, work_setup, is_remote = await parse_title(page)
-            location = await parse_location(page)
-            date_posted = await parse_date_posted(page)
+            title = await parse_text_content(
+                page, 
+                "h1[name='title']")
+            
+            location = await parse_location(
+                page,
+                "//h2[contains(., 'Job Locations')]/following-sibling::div[1]/div"
+            )
+            
+            date_posted = await parse_date_posted(
+                page,
+                "//label[contains(., 'POSTED DATE')]/following-sibling::p[1]"
+            )
             
             job_type = await parse_text_content(
                 page, 
@@ -491,8 +469,8 @@ async def web_scraper(keyword="data-analyst", max_pages=50):
                 "min_amount": min_amount,
                 "max_amount": max_amount,
                 "currency": currency,
-                "is_remote": is_remote,
-                "work_setup": work_setup,
+                "is_remote": NA,
+                "work_setup": NA,
                 "job_level": job_level,
                 "job_function": job_function,
                 "year_of_experience": year_of_experience,
