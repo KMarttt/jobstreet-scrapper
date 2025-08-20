@@ -55,29 +55,33 @@ def translate_text(translator, max_len, text):
 
 
 def translate_csv(input_file):
-    # === CONFIG ===
-
-    # Column to translate
-    translate_cols = ["title", "location", "skill", "company_addresses", "description","requirement", "company_description"]
-    long_text_cols = ["description", "requirement", "company_description"]
-
-    # Max length for each chunk
-    max_len = 4500
-
     # === READ CSV ===
     df = pd.read_csv(input_file, encoding="utf-8-sig")
 
     #  === TRANSLATION ===
     translator = GoogleTranslator(source='auto', target='en')    
 
+    # === CONFIG ===
+
+    # Column to translate
+    translate_cols = ["title", "location", "skill", "company_addresses", "description","requirement", "company_description"]
+    long_text_cols = ["description", "requirement", "company_description"]
+
+    # Existing column in the CSV
+    existing_translate_cols = [col for col in translate_cols if col in df.columns]
+    existing_long_text_cols = [col for col in long_text_cols if col in df.columns]
+    
+    # Max length for each chunk
+    max_len = 4500
+
     for idx, row in df.iterrows():
         # Get short texts from certain columns (short texts)
-        short_cols = [col for col in translate_cols if col not in long_text_cols]
+        short_cols = [col for col in existing_translate_cols if col not in existing_long_text_cols]
         short_text = " || ".join(
             [str(row[col]) for col in short_cols if not pd.isna(row[col])]
         )
         # Get long texts from long columns (long texts)
-        long_cols = [col for col in long_text_cols if not pd.isna(row[col])]
+        long_cols = [col for col in existing_long_text_cols if not pd.isna(row[col])]
         long_cols_texts = {col: str(row[col]) for col in long_cols}
         
         # Calculate total length of the text
@@ -86,14 +90,14 @@ def translate_csv(input_file):
         
         if total_len <= max_len:
             # If total length is less than or equal to max_len(4900), translate all together
-            combined_text = " || ".join([str(row[col]) for col in translate_cols if not pd.isna(row[col])])
+            combined_text = " || ".join([str(row[col]) for col in existing_translate_cols if not pd.isna(row[col])])
             translated = translate_text(translator, max_len, combined_text)
             translated_parts = translated.split(" || ")
             # for col, val in zip(translate_cols, translated_parts):
             #     df.at[idx, col] = val
 
             # Assign back but keep blanks/NaNs as is
-            non_empty_cols = [col for col in translate_cols if not pd.isna(row[col]) and str(row[col]).strip() != ""]
+            non_empty_cols = [col for col in existing_translate_cols if not pd.isna(row[col]) and str(row[col]).strip() != ""]
             for col, val in zip(non_empty_cols, translated_parts):
                 df.at[idx, col] = val
         else:
@@ -117,7 +121,7 @@ def translate_csv(input_file):
             #     df.at[idx, col] = translate_text(translator, max_len, long_cols_texts[col])
 
             # Translate long text columns individually, and insert them into the dataframe
-            for col in long_text_cols:
+            for col in existing_long_text_cols:
                 if not pd.isna(row[col]) and str(row[col]).strip() != "":
                     df.at[idx, col] = translate_text(translator, max_len, long_cols_texts[col])
             
@@ -130,10 +134,10 @@ def translate_csv(input_file):
 
 if __name__ == "__main__":
     print("CSV Job Translator")
-    print("A program that translates the following columns:\ntitle, location, skill, company_addresses, description, requirement, company_description")
+    print("A program that translates the following columns:\ntitle, location, skill, company_addresses, description, requirement, company_description\n")
 
     # Your csv file
     input_file = input("Enter the name of the CSV file: ") or "data/vietnamworks_vn_data-analyst.csv" 
 
     # Run
-    translate_csv(input_file)
+    translate_csv(f"data/{input_file}")
