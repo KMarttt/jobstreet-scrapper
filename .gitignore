@@ -19,5 +19,13 @@ venv/
 huggingface_skill.py
 jd_skills.py
 jd_skills_analysis.ipynb
+test_xpath.py
+
+old_csv_job_translator.py
+old_csv_job_translator
+
+jobnet_scraper.py
+jobnew_scraper_test.py
+job_street_scraper.py
 
 .vscode

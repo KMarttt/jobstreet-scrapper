@@ -15,10 +15,10 @@ async def parse_date_posted(page):
         "Posted", "").replace("ago", "").strip()
     print(f"Relative date text: {relative_date_text!r}")
 
-    if "d" in relative_date_text:  # if the date is in days
+    if "day" in relative_date_text: # if the date is in days
         days = int(re.sub(r"[^\d]", "", relative_date_text))
         return (current_date - timedelta(days=days)).strftime(r"%Y-%m-%d")
-    elif "h" in relative_date_text:  # If the date is in hour(s) ago
+    elif "hour" in relative_date_text: # If the date is in hour(s) ago
         return current_date.strftime(r"%Y-%m-%d")
     else:  # If the date is in minute(s) or second(s)
         return current_date.strftime(r"%Y-%m-%d")
@@ -60,8 +60,14 @@ async def parse_salary(page, currency_values, currency_dictionary):
             min_amount = numbers[0] if numbers[0] < numbers[1] else numbers[1]
             print("min ammount:", min_amount)
             max_amount = numbers[0] if numbers[0] > numbers[1] else numbers[1]
-            print("max ammount:", max_amount)
-        elif len(numbers) == 1:  # If the salary is fixed (1 value)
+            print("max ammount:",max_amount)
+        elif "up to" in salary_text:
+            min_amount = 0
+            max_amount = numbers[0]
+        elif "starting from" in salary_text:
+            min_amount = numbers[0]
+            max_amount = 0
+        elif len(numbers) == 1: #If the salary is fixed (1 value)
             min_amount = numbers[0]
             max_amount = numbers[0]
         else:
@@ -174,17 +180,15 @@ async def parse_company_info(portal, site, page):
         company_num_emp = NA
         company_description = NA
 
-    return company_url, company_industry, company_url_direct, company_addresses, company_num_emp, company_description
-
+    return company_industry, company_url, company_url_direct, company_addresses, company_num_emp, company_description
+    
 
 async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-Analyst", max_pages=2):
     # Phase 1: Initiate
     print("Initiating JobStreet Scraper")
     print(f"{portal} {site} {location} {keyword}")
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(
-            headless=False,
-        )
+        browser = await pw.chromium.launch(headless=False,)
 
         # Configuring the browser to be Incognito (to have clean cookies, cache, etc.)
         context = await browser.new_context()
@@ -310,7 +314,7 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
                     "&")[0] if "type=" in link else NA
                 description = (await page.locator("div._1lns5ab0.sye2ly0").text_content()).strip()
                 company_logo = await parse_company_logo(page)
-                company_url, company_industry, company_url_direct, company_addresses, company_num_emp, company_description = await parse_company_info(portal, site, page)
+                company_industry, company_url, company_url_direct, company_addresses, company_num_emp, company_description = await parse_company_info(portal, site, page)
 
                 job_data.append({
                     "id": job_id,
