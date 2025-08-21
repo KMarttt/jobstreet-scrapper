@@ -229,12 +229,13 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
         # Initializing variables
         job_links = []
         seen_links = set()  # To avoid duplicate job links
+
+        # Extracting job links
+        print("Extracting Job Links")
         current_page = 1
         consecutive_empty_pages = 0
         max_consecutive_empty = 3  # Stop if we encounter 3 consecutive empty pages
 
-        # Extracting job links
-        print("Extracting Job Links")
         while current_page <= max_pages and consecutive_empty_pages < max_consecutive_empty:
             loc_param = f"/in-{location}" if location else ""
             url = f"https://{portal}.{site}.com/{keyword}-jobs{loc_param}?page={current_page}"

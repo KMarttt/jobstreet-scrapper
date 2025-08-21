@@ -199,7 +199,7 @@ async def parse_company_info(page, job_template_type):
     
     
     match job_template_type:
-
+        
         case "A":
             company = await parse_text_content(
                 page,
@@ -216,7 +216,6 @@ async def parse_company_info(page, job_template_type):
     if not pd.isna(company):
         
         match job_template_type:
-
             case "A":
                 company_url = await page.locator(
                     "//div[@class='apply-now-content']/div[1]/a"
@@ -244,7 +243,6 @@ async def parse_company_info(page, job_template_type):
         print(f"Company Template Type: {company_template_type}")
         
         match company_template_type:
-            
             case "A":
                 print("Company Template Type A")
 
@@ -369,12 +367,13 @@ async def web_scraper(keyword="data-mining", max_pages=50):
         # Initialize variables
         job_links = []
         seen_links = set() # To avoid duplicate job links
+
+        # Scrape job links
+        print("Extracting Job Links")
         current_page = 1
         consecutive_empty_pages = 0
         max_consecutive_empty = 3 # Stop if we encounter 3 consecutive empty pages
 
-        # Extract job links
-        print("Extracting Job Links")
         while current_page <= max_pages and consecutive_empty_pages < max_consecutive_empty:
             url = f"https://careerviet.vn/jobs/{keyword}-k-page-{current_page}-en.html"
             print(f"Scraping page {current_page}: {url}")
@@ -458,7 +457,6 @@ async def web_scraper(keyword="data-mining", max_pages=50):
             job_template_type = "A" if await page.locator("div.apply-now-content").count() > 0 else "B"
 
             match job_template_type:
-
                 case "A":
                     title = await parse_text_content(
                         page, 

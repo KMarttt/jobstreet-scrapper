@@ -277,12 +277,13 @@ async def web_scraper(keyword="data-analyst", max_pages=2):
         # Initialize variables
         job_links = []
         seen_links = set() # To avoid duplicate job links
+
+        # Extract job links
+        print("Extracting Job Links")
         current_page = 1
         consecutive_empty_pages = 0
         max_consecutive_empty = 3 # Stop if we encounter 3 consecutive empty pages
 
-        # Extract job links
-        print("Extracting Job Links")
         while current_page <= max_pages and consecutive_empty_pages < max_consecutive_empty:
             url = f"https://www.vietnamworks.com/jobs?q={keyword}&page={current_page}&sorting=relevant"
             print(f"Scraping page {current_page}: {url}")

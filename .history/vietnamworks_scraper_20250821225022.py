@@ -261,7 +261,7 @@ async def parse_company_info(page):
     return company, company_industry, company_url, company_logo, company_addresses, company_num_emp, company_description
 
 async def web_scraper(keyword="data-analyst", max_pages=2):
-    # === Phase 1: Initiate
+    # Phase 1: Initiate
     print("Initiating Vietnam Works Scraper")
     print(f"{keyword} {max_pages}")
     async with async_playwright() as pw:
@@ -271,18 +271,15 @@ async def web_scraper(keyword="data-analyst", max_pages=2):
         context = await browser.new_context()
         # Open new page
         page = await context.new_page()
-
-        # === Phase 2: Extract all job links
-
-        # Initialize variables
         job_links = []
         seen_links = set() # To avoid duplicate job links
+
+        # Phase 2: Extract all job links
+        print("Extracting Job Links")
         current_page = 1
         consecutive_empty_pages = 0
         max_consecutive_empty = 3 # Stop if we encounter 3 consecutive empty pages
 
-        # Extract job links
-        print("Extracting Job Links")
         while current_page <= max_pages and consecutive_empty_pages < max_consecutive_empty:
             url = f"https://www.vietnamworks.com/jobs?q={keyword}&page={current_page}&sorting=relevant"
             print(f"Scraping page {current_page}: {url}")
@@ -362,7 +359,7 @@ async def web_scraper(keyword="data-analyst", max_pages=2):
             await browser.close()
             return
 
-        # === Phase 3: Extract Job Details
+        # Phase 3: Extract Job Details
         
         # Initialize currency values
         currency_values = {

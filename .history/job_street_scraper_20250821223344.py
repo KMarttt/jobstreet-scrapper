@@ -223,18 +223,16 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
         context = await browser.new_context()
         # Open new page
         page = await context.new_page()
+        job_links = []
+        job_data = []
+        seen_links = set()  # To avoid duplicate job links
 
         # Phase 2: Extract all job links with automatic page detection
-
-        # Initializing variables
-        job_links = []
-        seen_links = set()  # To avoid duplicate job links
+        print("Extracting Job Links")
         current_page = 1
         consecutive_empty_pages = 0
         max_consecutive_empty = 3  # Stop if we encounter 3 consecutive empty pages
 
-        # Extracting job links
-        print("Extracting Job Links")
         while current_page <= max_pages and consecutive_empty_pages < max_consecutive_empty:
             loc_param = f"/in-{location}" if location else ""
             url = f"https://{portal}.{site}.com/{keyword}-jobs{loc_param}?page={current_page}"
@@ -324,9 +322,6 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
             "IDR": "IDR", "MYR": "MYR", "PHP": "PHP", "THB": "THB", "USD": "USD", "SGD": "SGD", "VND": "VND",
             "Rp": "IDR", "RM": "MYR", "₱": "PHP", "฿": "THB", "$": "SGD", "S$": "SGD", "₫": "VND",
         }
-
-        # Initialize data list
-        job_data = []
 
         # Extract job details
         print("\nExtracting Job Details")
@@ -439,11 +434,8 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
 
         print("Extraction Completed")
         print("Saving data to CSV")
-
-        # Phase 4: Save to CSV
         data_frame = pd.DataFrame(job_data)
 
-        # Last cleanup
         for col in data_frame.columns:
             if data_frame[col].dtype == "object":
                 data_frame[col] = data_frame[col].apply(
@@ -451,7 +443,6 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
                         "\r", " ") if isinstance(x, str) else x
                 )
 
-        # Save to CSV
         data_frame.to_csv(
             f"data/{site}_{portal}_{keyword}.csv", 
             index=False,

@@ -23,6 +23,8 @@ test_xpath.py
 
 old_csv_job_translator.py
 
+jobnet_scraper.py
 jobnew_scraper_test.py
+job_street_scraper.py
 
 .vscode

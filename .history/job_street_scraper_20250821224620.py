@@ -224,17 +224,17 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
         # Open new page
         page = await context.new_page()
 
-        # Phase 2: Extract all job links with automatic page detection
-
         # Initializing variables
         job_links = []
+        job_data = []
         seen_links = set()  # To avoid duplicate job links
+
+        # Phase 2: Extract all job links with automatic page detection
+        print("Extracting Job Links")
         current_page = 1
         consecutive_empty_pages = 0
         max_consecutive_empty = 3  # Stop if we encounter 3 consecutive empty pages
 
-        # Extracting job links
-        print("Extracting Job Links")
         while current_page <= max_pages and consecutive_empty_pages < max_consecutive_empty:
             loc_param = f"/in-{location}" if location else ""
             url = f"https://{portal}.{site}.com/{keyword}-jobs{loc_param}?page={current_page}"
@@ -324,9 +324,6 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
             "IDR": "IDR", "MYR": "MYR", "PHP": "PHP", "THB": "THB", "USD": "USD", "SGD": "SGD", "VND": "VND",
             "Rp": "IDR", "RM": "MYR", "₱": "PHP", "฿": "THB", "$": "SGD", "S$": "SGD", "₫": "VND",
         }
-
-        # Initialize data list
-        job_data = []
 
         # Extract job details
         print("\nExtracting Job Details")

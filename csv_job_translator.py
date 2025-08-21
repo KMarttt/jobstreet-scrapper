@@ -2,8 +2,6 @@
 import pandas as pd
 from deep_translator import GoogleTranslator
 
-
-
 def translate_text(translator, max_len, text):
     # If the text is empty or NaN, return it as is
     if pd.isna(text) or str(text).strip() == "":
@@ -93,8 +91,6 @@ def translate_csv(input_file):
             combined_text = " || ".join([str(row[col]) for col in existing_translate_cols if not pd.isna(row[col])])
             translated = translate_text(translator, max_len, combined_text)
             translated_parts = translated.split(" || ")
-            # for col, val in zip(translate_cols, translated_parts):
-            #     df.at[idx, col] = val
 
             # Assign back but keep blanks/NaNs as is
             non_empty_cols = [col for col in existing_translate_cols if not pd.isna(row[col]) and str(row[col]).strip() != ""]
@@ -102,23 +98,15 @@ def translate_csv(input_file):
                 df.at[idx, col] = val
         else:
             # Translate the combined short texts, and insert them into the dataframe
-            # translated_short_text = translate_text(translator, max_len, short_text)
-            # translated_short_parts = translated_short_text.split(" || ")
-            # for col, val in zip(short_cols, translated_short_parts):
-            #     df.at[idx, col] = val
-            # Translate the combined short texts, and insert them into the dataframe
             short_non_empty = [col for col in short_cols if not pd.isna(row[col]) and str(row[col]).strip() != ""]
             if short_non_empty:
                 translated_short_text = translate_text(translator, max_len, short_text)
                 translated_short_parts = translated_short_text.split(" || ")
                 for col, val in zip(short_non_empty, translated_short_parts):
                     df.at[idx, col] = val
+                    
             for col, val in zip(short_non_empty, translated_short_parts):
                     df.at[idx, col] = val
-
-            # # Translate long text columns individually, and insert them into the dataframe
-            # for col in long_text_cols:
-            #     df.at[idx, col] = translate_text(translator, max_len, long_cols_texts[col])
 
             # Translate long text columns individually, and insert them into the dataframe
             for col in existing_long_text_cols:
@@ -137,7 +125,7 @@ if __name__ == "__main__":
     print("A program that translates the following columns:\ntitle, location, skill, company_addresses, description, requirement, company_description\n")
 
     # Your csv file
-    input_file = input("Enter the name of the CSV file: ") or "data/vietnamworks_vn_data-analyst.csv" 
+    input_file = input("Enter the name of the CSV file: ") or "vietnamworks_vn_data-analyst.csv" 
 
     # Run
     translate_csv(f"data/{input_file}")
