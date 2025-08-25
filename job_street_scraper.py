@@ -248,7 +248,10 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
 
                 # Locator for job card links
                 card_links = page.locator(
-                    "article div._1lns5ab0._6c7qzn50._6c7qzn4y a")
+                    "//article[contains(@data-testid, 'job-card')]/div/a[@data-automation='job-list-view-job-link']"
+                )
+
+                print(card_links)
 
                 # Get the count of job links on current page
                 link_count = await card_links.count()
@@ -385,7 +388,7 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
                 
                 description = await parse_text_content(
                     page, 
-                    "//div[@class='_1lns5ab0 sye2ly0']"
+                    "//div[@data-automation='jobAdDetails']/div"
                 )
 
                 company_logo = await parse_company_logo(
@@ -444,12 +447,12 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
         data_frame = pd.DataFrame(job_data)
 
         # Last cleanup
-        for col in data_frame.columns:
-            if data_frame[col].dtype == "object":
-                data_frame[col] = data_frame[col].apply(
-                    lambda x: x.replace("\n", " ").replace(
-                        "\r", " ") if isinstance(x, str) else x
-                )
+        # for col in data_frame.columns:
+        #     if data_frame[col].dtype == "object":
+        #         data_frame[col] = data_frame[col].apply(
+        #             lambda x: x.replace("\n", " ").replace(
+        #                 "\r", " ") if isinstance(x, str) else x
+        #         )
 
         # Save to CSV
         data_frame.to_csv(
