@@ -8,6 +8,9 @@ venv/
 # Jupyter
 .ipynb_checkpoints/
 
+# History Folder
+.history
+
 # Data
 *.csv
 !data/sample_*.csv  # Keep small sample CSVs
