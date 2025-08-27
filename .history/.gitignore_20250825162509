@@ -11,7 +11,6 @@ venv/
 # Data
 *.csv
 !data/sample_*.csv  # Keep small sample CSVs
-*.txt
 
 # Keep the empty folder in Git
 !data/.gitkeep
@@ -23,7 +22,6 @@ jd_skills_analysis.ipynb
 test_xpath.py
 
 old_csv_job_translator.py
-
 
 jobnew_scraper_test.py
 

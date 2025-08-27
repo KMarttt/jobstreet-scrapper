@@ -5,26 +5,7 @@ import pandas as pd
 from pandas import NA
 from datetime import datetime, timedelta
 import re
-import sys
 
-
-# -----------------------------
-# Logging setup for cmd terminal
-log_file = open("data/output_jobstreet_sg_data-analyst.txt", "w", encoding="utf-8")
-
-class Tee:
-    def __init__(self, *files):
-        self.files = files
-    def write(self, obj):
-        for f in self.files:
-            f.write(obj)
-            f.flush()
-    def flush(self):
-        for f in self.files:
-            f.flush()
-
-sys.stdout = sys.stderr = Tee(sys.stdout, log_file)
-# -----------------------------
 
 async def parse_text_content(page, selector):
     # Check if the element exists
