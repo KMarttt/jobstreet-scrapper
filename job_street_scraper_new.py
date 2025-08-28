@@ -410,148 +410,114 @@ async def parse_company_info(portal, site, page):
 
     return company_industry, company_url, company_url_direct, company_addresses, company_num_emp, company_description
 
+CONCURRENCY_LIMIT = 10   # number of tabs at once
+BATCH_LIMIT = 3000       # restart browser after this many jobs
+
+
+async def scrape_single_job(page, link, portal, site, currency_values, currency_dictionary):
+    """Scrape a single job detail page on a given tab (page)."""
+    try:
+        job_id = link.split("/job/")[1].split("?")[0]
+        job_url = f"https://{portal}.{site}.com{link}"
+        print(f"Scraping job: {job_url}")
+        await page.goto(job_url, timeout=30000)
+
+        title = await parse_text_content(page, "//h1[@data-automation='job-detail-title']")
+        company = await parse_text_content(page, "//span[@data-automation='advertiser-name']")
+        location, is_remote, work_setup = await parse_location(page, "span[data-automation='job-detail-location']")
+        date_posted = await parse_date_posted(page, "xpath=(//span[contains(text(),'Posted')])[1]")
+        job_type = await parse_text_content(page, "//span[@data-automation='job-detail-work-type']")
+        salary_source, interval, min_amount, max_amount, currency = await parse_salary(
+            page, "span[data-automation='job-detail-salary']",
+            currency_values, currency_dictionary, portal
+        )
+        job_function = await parse_text_content(page, "//span[@data-automation='job-detail-classifications']")
+        listing_type = link.split("type=")[1].split(
+            "&")[0] if "type=" in link else NA
+        description = await parse_text_content(page, "//div[@data-automation='jobAdDetails']/div")
+        company_logo = await parse_company_logo(page, "div[data-testid='bx-logo-image'] img")
+        company_industry, company_url, company_url_direct, company_addresses, company_num_emp, company_description = await parse_company_info(portal, site, page)
+
+        return {
+            "id": job_id,
+            "site": site,
+            "job_url": job_url,
+            "job_url_direct": NA,
+            "title": title,
+            "company": company,
+            "location": location,
+            "date_posted": date_posted,
+            "job_type": job_type,
+            "salary_source": salary_source,
+            "interval": interval,
+            "min_amount": min_amount,
+            "max_amount": max_amount,
+            "currency": currency,
+            "is_remote": is_remote,
+            "work_setup": work_setup,
+            "job_level": NA,
+            "job_function": job_function,
+            "listing_type": listing_type,
+            "emails": NA,
+            # "description": description,
+            "company_industry": company_industry,
+            "company_url": company_url,
+            "company_logo": company_logo,
+            "company_url_direct": company_url_direct,
+            "company_addresses": company_addresses,
+            "company_num_emp": company_num_emp,
+            "company_revenue": NA,
+            # "company_description": company_description,
+        }
+
+    except Exception as e:
+        print(f"Error scraping {link}: {e}")
+        return None
+
 
 async def process_job_links(job_links, portal, site, currency_values, currency_dictionary, retry_attempt=0):
-    """Process a list of job links and return job data and error links"""
+    """Scrape job links using multiple tabs concurrently with browser restart every 3000 jobs."""
     job_data = []
     error_links = []
+    total_processed = 0
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=False)
 
-        # Create a clean context with no storage, cookies, or cache
-        context = await browser.new_context(
-            storage_state=None,  # No storage state
-            accept_downloads=False,
-            bypass_csp=False,
-            color_scheme='light',
-            extra_http_headers=None,
-            offline=False,
-            timezone_id=None,
-            locale='en-US',
-            # Clear any previous data
-            java_script_enabled=True,
-            permissions=[],
-            # Use incognito-like settings
-            ignore_https_errors=True
-        )
+        async def start_browser():
+            browser = await pw.chromium.launch(headless=False)
+            context = await browser.new_context()
+            return browser, context
 
-        # Clear any existing cookies and storage at context level
-        await clear_browser_data(context, page)
+        browser, context = await start_browser()
 
-        print(
-            f"\nProcessing {len(job_links)} job links (Attempt {retry_attempt + 1})")
+        while total_processed < len(job_links):
+            # batch of up to BATCH_LIMIT jobs
+            batch_links = job_links[total_processed: total_processed + BATCH_LIMIT]
+            print(f"\n--- Processing batch: {len(batch_links)} jobs ---")
 
-        # Clear browser cache/data every 50 jobs to prevent accumulation
-        for i, link in enumerate(job_links, 1):
-            print(
-                f"Processing job {i}/{len(job_links)} (Total errors so far: {len(error_links)})")
+            sem = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
-            # Clear browser data every 50 jobs or if memory might be building up
-            if i % 50 == 0:
-                print("Clearing browser data to prevent memory buildup...")
-                await clear_browser_data(context, page)
+            async def bound_scrape(link):
+                async with sem:
+                    page = await context.new_page()
+                    data = await scrape_single_job(page, link, portal, site, currency_values, currency_dictionary)
+                    await page.close()
+                    if data:
+                        job_data.append(data)
+                    else:
+                        error_links.append(link)
 
-            try:
-                job_id = link.split("/job/")[1].split("?")[0]
+            # Run this batch
+            await asyncio.gather(*(bound_scrape(link) for link in batch_links))
 
-                job_url = f"https://{portal}.{site}.com{link}"
-                print(f"Job URL: {job_url}")
-                await page.goto(job_url, timeout=30000)
+            total_processed += len(batch_links)
 
-                title = await parse_text_content(
-                    page,
-                    "//h1[@data-automation='job-detail-title']"
-                )
-
-                company = await parse_text_content(
-                    page,
-                    "//span[@data-automation='advertiser-name']"
-                )
-
-                location, is_remote, work_setup = await parse_location(
-                    page,
-                    "span[data-automation='job-detail-location']"
-                )
-
-                date_posted = await parse_date_posted(
-                    page,
-                    "xpath=(//span[contains(text(),'Posted')])[1]"
-                )
-
-                job_type = await parse_text_content(
-                    page,
-                    "//span[@data-automation='job-detail-work-type']"
-                )
-
-                salary_source, interval, min_amount, max_amount, currency = await parse_salary(
-                    page,
-                    "span[data-automation='job-detail-salary']",
-                    currency_values,
-                    currency_dictionary,
-                    portal
-                )
-
-                job_function = await parse_text_content(
-                    page,
-                    "//span[@data-automation='job-detail-classifications']"
-                )
-
-                listing_type = link.split("type=")[1].split(
-                    "&")[0] if "type=" in link else NA
-
-                description = await parse_text_content(
-                    page,
-                    "//div[@data-automation='jobAdDetails']/div"
-                )
-
-                company_logo = await parse_company_logo(
-                    page,
-                    "div[data-testid='bx-logo-image'] img"
-                )
-
-                company_industry, company_url, company_url_direct, company_addresses, company_num_emp, company_description = await parse_company_info(
-                    portal,
-                    site,
-                    page
-                )
-
-                job_data.append({
-                    "id": job_id,
-                    "site": site,
-                    "job_url": job_url,
-                    "job_url_direct": NA,
-                    "title": title,
-                    "company": company,
-                    "location": location,
-                    "date_posted": date_posted,
-                    "job_type": job_type,
-                    "salary_source": salary_source,
-                    "interval": interval,
-                    "min_amount": min_amount,
-                    "max_amount": max_amount,
-                    "currency": currency,
-                    "is_remote": is_remote,
-                    "work_setup": work_setup,
-                    "job_level": NA,
-                    "job_function": job_function,
-                    "listing_type": listing_type,
-                    "emails": NA,
-                    "description": description,
-                    "company_industry": company_industry,
-                    "company_url": company_url,
-                    "company_logo": company_logo,
-                    "company_url_direct": company_url_direct,
-                    "company_addresses": company_addresses,
-                    "company_num_emp": company_num_emp,
-                    "company_revenue": NA,
-                    "company_description": company_description,
-                })
-
-            except Exception as e:
-                print(f"Error processing job {i} ({link}): {str(e)}")
-                error_links.append(link)
-                continue
+            # Restart browser after each batch of 3000
+            await browser.close()
+            if total_processed < len(job_links):
+                print(
+                    f"\n--- Restarting browser after {total_processed} jobs ---")
+                browser, context = await start_browser()
 
         await browser.close()
 
