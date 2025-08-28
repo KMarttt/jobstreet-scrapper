@@ -9,6 +9,77 @@ import sys
 import os
 
 # -----------------------------
+
+
+async def clear_browser_data(context, page):
+    """Comprehensive browser data clearing function"""
+    try:
+        # Clear cookies at context level
+        await context.clear_cookies()
+
+        # Clear all browser storage using JavaScript
+        await page.evaluate("""
+            async () => {
+                // Clear localStorage
+                if (typeof(Storage) !== "undefined" && localStorage) {
+                    localStorage.clear();
+                }
+                
+                // Clear sessionStorage
+                if (typeof(Storage) !== "undefined" && sessionStorage) {
+                    sessionStorage.clear();
+                }
+                
+                // Clear indexedDB
+                if (window.indexedDB) {
+                    try {
+                        const databases = await indexedDB.databases();
+                        await Promise.all(
+                            databases.map(db => {
+                                return new Promise((resolve, reject) => {
+                                    const deleteReq = indexedDB.deleteDatabase(db.name);
+                                    deleteReq.onsuccess = () => resolve();
+                                    deleteReq.onerror = () => reject();
+                                });
+                            })
+                        );
+                    } catch (e) {
+                        console.log('IndexedDB clearing failed:', e);
+                    }
+                }
+                
+                // Clear Cache API if available
+                if ('caches' in window) {
+                    try {
+                        const cacheNames = await caches.keys();
+                        await Promise.all(
+                            cacheNames.map(cacheName => caches.delete(cacheName))
+                        );
+                    } catch (e) {
+                        console.log('Cache API clearing failed:', e);
+                    }
+                }
+                
+                // Clear any service worker data
+                if ('serviceWorker' in navigator) {
+                    try {
+                        const registrations = await navigator.serviceWorker.getRegistrations();
+                        await Promise.all(
+                            registrations.map(registration => registration.unregister())
+                        );
+                    } catch (e) {
+                        console.log('Service worker clearing failed:', e);
+                    }
+                }
+            }
+        """)
+
+        print("Browser data cleared successfully")
+
+    except Exception as e:
+        print(f"Warning: Could not clear all browser data: {e}")
+
+# -----------------------------
 # Logging setup for cmd terminal
 
 
@@ -347,15 +418,39 @@ async def process_job_links(job_links, portal, site, currency_values, currency_d
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=False)
-        context = await browser.new_context()
-        page = await context.new_page()
+
+        # Create a clean context with no storage, cookies, or cache
+        context = await browser.new_context(
+            storage_state=None,  # No storage state
+            accept_downloads=False,
+            bypass_csp=False,
+            color_scheme='light',
+            extra_http_headers=None,
+            offline=False,
+            timezone_id=None,
+            locale='en-US',
+            # Clear any previous data
+            java_script_enabled=True,
+            permissions=[],
+            # Use incognito-like settings
+            ignore_https_errors=True
+        )
+
+        # Clear any existing cookies and storage at context level
+        await clear_browser_data(context, page)
 
         print(
             f"\nProcessing {len(job_links)} job links (Attempt {retry_attempt + 1})")
 
+        # Clear browser cache/data every 50 jobs to prevent accumulation
         for i, link in enumerate(job_links, 1):
             print(
                 f"Processing job {i}/{len(job_links)} (Total errors so far: {len(error_links)})")
+
+            # Clear browser data every 50 jobs or if memory might be building up
+            if i % 50 == 0:
+                print("Clearing browser data to prevent memory buildup...")
+                await clear_browser_data(context, page)
 
             try:
                 job_id = link.split("/job/")[1].split("?")[0]
@@ -551,8 +646,19 @@ async def web_scraper(is_rescraping, link_file_name, portal="my", site="jobstree
         # Extract job links from the website
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=False)
-            context = await browser.new_context()
+
+            # Create clean context for link extraction
+            context = await browser.new_context(
+                storage_state=None,
+                java_script_enabled=True,
+                accept_downloads=False
+            )
+            await context.clear_cookies()
+
             page = await context.new_page()
+
+            # Clear any browser storage
+            await clear_browser_data(context, page)
 
             job_links = await extract_job_links(page, portal, site, job_location, keyword, max_pages)
 
