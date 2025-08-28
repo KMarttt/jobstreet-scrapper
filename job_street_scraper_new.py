@@ -1,4 +1,4 @@
-# A Job Street Scraper
+# A Job Street Scraper with Auto-Retry Logic
 from playwright.async_api import async_playwright
 import asyncio
 import pandas as pd
@@ -6,25 +6,31 @@ from pandas import NA
 from datetime import datetime, timedelta
 import re
 import sys
+import os
 
 # -----------------------------
 # Logging setup for cmd terminal
 
+
 class Tee:
     def __init__(self, *files):
         self.files = files
+
     def write(self, obj):
         for f in self.files:
             f.write(obj)
             f.flush()
+
     def flush(self):
         for f in self.files:
             f.flush()
 
 
-def setup_logging(is_scraping, site, portal, job_location, keyword):
+def setup_logging(is_scraping, site, portal, job_location, keyword, retry_attempt=0):
     if is_scraping:
         log_file_name = f"terminal_output_{site}_{portal}_{job_location}_{keyword}_rescraped.txt"
+    elif retry_attempt > 0:
+        log_file_name = f"terminal_output_{site}_{portal}_{job_location}_{keyword}_retry_{retry_attempt}.txt"
     else:
         log_file_name = f"terminal_output_{site}_{portal}_{job_location}_{keyword}.txt"
 
@@ -33,6 +39,7 @@ def setup_logging(is_scraping, site, portal, job_location, keyword):
     return log_file
 
 # -----------------------------
+
 
 async def extract_job_links(page, portal, site, job_location, keyword, max_pages):
     # Extract all job links with automatic page detection
@@ -126,6 +133,7 @@ async def parse_text_content(page, selector):
     else:
         return NA
 
+
 async def parse_date_posted(page, selector):
     date_text = await parse_text_content(page, selector)
 
@@ -134,13 +142,14 @@ async def parse_date_posted(page, selector):
         "Posted", "").replace("ago", "").strip()
     print(f"Relative date text: {relative_date_text!r}")
 
-    if "day" in relative_date_text: # if the date is in days
+    if "day" in relative_date_text:  # if the date is in days
         days = int(re.sub(r"[^\d]", "", relative_date_text))
         return (current_date - timedelta(days=days)).strftime(r"%Y-%m-%d")
-    elif "hour" in relative_date_text: # If the date is in hour(s) ago
+    elif "hour" in relative_date_text:  # If the date is in hour(s) ago
         return current_date.strftime(r"%Y-%m-%d")
     else:  # If the date is in minute(s) or second(s)
         return current_date.strftime(r"%Y-%m-%d")
+
 
 async def parse_location(page, selector):
     location_section = await parse_text_content(page, selector)
@@ -172,7 +181,7 @@ async def parse_salary(page, selector, currency_values, currency_dictionary, por
     if not pd.isna(salary_text):
         salary_text = salary_text.lower()
         salary_source = "direct_data"
-        
+
         # Select the salary value
         if portal == "id":
             # Designed for Indoensian Portal where the salary separator is a period or a comma -- does not consider decimal
@@ -185,15 +194,16 @@ async def parse_salary(page, selector, currency_values, currency_dictionary, por
             # Parse the numbers (conversion & formatting)
             parsed_numbers = []
             for n in numbers:
-                n = n.replace(",","").replace(".","").strip()
+                n = n.replace(",", "").replace(".", "").strip()
                 print("n:", n)
 
                 if re.search(r"(million|mil|m)\b", n):
                     num_part = re.sub(r"(million|mil|m)\b", "", n).strip()
-                    parsed_numbers.append(int(float(num_part) * 1_000_000))   
+                    parsed_numbers.append(int(float(num_part) * 1_000_000))
                 elif re.search(r"(k|thousand|thousands)\b", n):
-                    num_part = re.sub(r"(k|thousand|thousands)\b", "", n).strip()
-                    parsed_numbers.append(int(float(num_part) * 1_000))   
+                    num_part = re.sub(
+                        r"(k|thousand|thousands)\b", "", n).strip()
+                    parsed_numbers.append(int(float(num_part) * 1_000))
                 else:
                     print("parsed n:", n)
                     parsed_numbers.append(int(float(n)))
@@ -209,14 +219,15 @@ async def parse_salary(page, selector, currency_values, currency_dictionary, por
             # Parse the numbers (conversion & formatting)
             parsed_numbers = []
             for n in numbers:
-                n = n.replace(",","").strip()
+                n = n.replace(",", "").strip()
 
                 if re.search(r"(million|mil|m)\b", n):
                     num_part = re.sub(r"(million|mil|m)\b", "", n).strip()
-                    parsed_numbers.append(int(float(num_part) * 1_000_000))   
+                    parsed_numbers.append(int(float(num_part) * 1_000_000))
                 elif re.search(r"(k|thousand|thousands)\b", n):
-                    num_part = re.sub(r"(k|thousand|thousands)\b", "", n).strip()
-                    parsed_numbers.append(int(float(num_part) * 1_000))   
+                    num_part = re.sub(
+                        r"(k|thousand|thousands)\b", "", n).strip()
+                    parsed_numbers.append(int(float(num_part) * 1_000))
                 else:
                     parsed_numbers.append(int(float(n)))
 
@@ -271,6 +282,7 @@ async def parse_salary(page, selector, currency_values, currency_dictionary, por
 
     return salary_source, interval, min_amount, max_amount, currency
 
+
 async def parse_company_logo(page, selector):
     logo = page.locator(selector)
     if await logo.count() > 0:
@@ -279,6 +291,7 @@ async def parse_company_logo(page, selector):
         return await logo.get_attribute("src")
     else:
         return NA
+
 
 async def parse_company_info(portal, site, page):
     link_locator = page.locator(
@@ -307,17 +320,17 @@ async def parse_company_info(portal, site, page):
         )
 
         company_addresses = await parse_text_content(
-            page, 
+            page,
             "//h3[contains(text(), 'Primary location')]/parent::div/following-sibling::div//span"
         )
 
         company_num_emp = await parse_text_content(
-            page, 
+            page,
             "//h3[contains(text(), 'Company size')]/parent::div/following-sibling::div//span"
         )
 
         company_description = await parse_text_content(
-            page, 
+            page,
             "//h2[contains(text(), 'Company overview')]/ancestor::div[3]/following-sibling::div[1]/div/div[last()]"
         )
 
@@ -325,131 +338,89 @@ async def parse_company_info(portal, site, page):
         return NA, NA, NA, NA, NA, NA
 
     return company_industry, company_url, company_url_direct, company_addresses, company_num_emp, company_description
-    
 
-async def web_scraper(is_rescraping, link_file_name, portal="my", site="jobstreet", job_location="", keyword="Data-Analyst", max_pages=2):
-    # Phase 1: Initiate    
-    print("Initiating JobStreet Scraper")
-    print(f"{portal} {site} {job_location} {keyword} {max_pages}")
+
+async def process_job_links(job_links, portal, site, currency_values, currency_dictionary, retry_attempt=0):
+    """Process a list of job links and return job data and error links"""
+    job_data = []
+    error_links = []
+
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=False,)
-
-        # Configuring the browser to be Incognito (to have clean cookies, cache, etc.)
+        browser = await pw.chromium.launch(headless=False)
         context = await browser.new_context()
-        # Open new page
         page = await context.new_page()
 
-        # Phase 2: Extract all job links
-        if is_rescraping:
-            # Extract job links from the given file
-            job_links_df = pd.read_csv(f"data/{link_file_name}", header = None)
-            job_links = job_links_df[0].tolist()
-        else:
-            # Extract job links from the website
-            job_links = await extract_job_links(page, portal, site, job_location, keyword, max_pages)
+        print(
+            f"\nProcessing {len(job_links)} job links (Attempt {retry_attempt + 1})")
 
-            if not job_links:
-                print("No job links found. Exiting.")
-                await browser.close()
-                return
-        
-        # Phase 3: Extract Job Details
-
-        # Initialize currency dictionary
-        currency_country_dictionary = {
-            "ph": ["PHP", "₱"],
-            "th": ["THB", "฿"],
-            "my": ["MYR", "RM"],
-            "id": ["IDR", "Rp"],
-            "sg": ["SGD", "$", "S$"],
-            "vn": ["VND", "₫"],
-        }
-        currency_values = currency_country_dictionary[portal]
-
-        currency_dictionary = {
-            "IDR": "IDR", "MYR": "MYR", "PHP": "PHP", "THB": "THB", "USD": "USD", "SGD": "SGD", "VND": "VND",
-            "Rp": "IDR", "RM": "MYR", "₱": "PHP", "฿": "THB", "$": "SGD", "S$": "SGD", "₫": "VND",
-        }
-
-
-
-        # Initialize data list
-        job_data = []
-        error_link = []
-        error_number = 0
-
-        # Extract job details
-        print("\nExtracting Job Details")
         for i, link in enumerate(job_links, 1):
-            print(f"Processing job {i}/{len(job_links)}")
-            print(f"Error Count: {error_number}")
+            print(
+                f"Processing job {i}/{len(job_links)} (Total errors so far: {len(error_links)})")
 
             try:
                 job_id = link.split("/job/")[1].split("?")[0]
-                
+
                 job_url = f"https://{portal}.{site}.com{link}"
                 print(f"Job URL: {job_url}")
                 await page.goto(job_url, timeout=30000)
 
                 title = await parse_text_content(
-                    page, 
+                    page,
                     "//h1[@data-automation='job-detail-title']"
                 )
 
                 company = await parse_text_content(
-                    page, 
+                    page,
                     "//span[@data-automation='advertiser-name']"
                 )
 
                 location, is_remote, work_setup = await parse_location(
-                    page, 
+                    page,
                     "span[data-automation='job-detail-location']"
                 )
-                
+
                 date_posted = await parse_date_posted(
-                    page, 
+                    page,
                     "xpath=(//span[contains(text(),'Posted')])[1]"
                 )
-                
 
                 job_type = await parse_text_content(
-                    page, 
+                    page,
                     "//span[@data-automation='job-detail-work-type']"
                 )
 
                 salary_source, interval, min_amount, max_amount, currency = await parse_salary(
-                    page, 
-                    "span[data-automation='job-detail-salary']", 
-                    currency_values, 
+                    page,
+                    "span[data-automation='job-detail-salary']",
+                    currency_values,
                     currency_dictionary,
                     portal
                 )
-                
 
                 job_function = await parse_text_content(
-                    page, 
+                    page,
                     "//span[@data-automation='job-detail-classifications']"
                 )
 
                 listing_type = link.split("type=")[1].split(
                     "&")[0] if "type=" in link else NA
-                
+
                 description = await parse_text_content(
-                    page, 
+                    page,
                     "//div[@data-automation='jobAdDetails']/div"
                 )
 
                 company_logo = await parse_company_logo(
-                    page, 
+                    page,
                     "div[data-testid='bx-logo-image'] img"
                 )
-                
+
                 company_industry, company_url, company_url_direct, company_addresses, company_num_emp, company_description = await parse_company_info(
-                    portal, 
-                    site, 
+                    portal,
+                    site,
                     page
                 )
-                
+
                 job_data.append({
                     "id": job_id,
                     "site": site,
@@ -484,75 +455,210 @@ async def web_scraper(is_rescraping, link_file_name, portal="my", site="jobstree
 
             except Exception as e:
                 print(f"Error processing job {i} ({link}): {str(e)}")
-                error_link.append(link)
-                error_number += 1
-
+                error_links.append(link)
                 continue
 
         await browser.close()
 
-        print("Extraction Completed")
-        print("Saving data to CSV")
+    return job_data, error_links
 
-        # Phase 4: Save to CSV
-        data_frame = pd.DataFrame(job_data)
 
-        # Last cleanup
-        # for col in data_frame.columns:
-        #     if data_frame[col].dtype == "object":
-        #         data_frame[col] = data_frame[col].apply(
-        #             lambda x: x.replace("\n", " ").replace(
-        #                 "\r", " ") if isinstance(x, str) else x
-        #         )
+def save_error_links(error_links, site, portal, job_location, keyword, retry_attempt=0):
+    """Save error links to a CSV file"""
+    if not error_links:
+        return None
 
-        # Save to CSV
+    if retry_attempt > 0:
+        filename = f"data/{site}_{portal}_{job_location}_{keyword}_retry_{retry_attempt}_errors.csv"
+    else:
+        filename = f"data/{site}_{portal}_{job_location}_{keyword}_errors.csv"
 
+    error_df = pd.DataFrame(error_links, columns=['job_link'])
+    error_df.to_csv(filename, index=False, encoding='utf-8-sig')
+    print(f"Error links saved to: {filename}")
+    return filename
+
+
+def load_error_links(filename):
+    """Load error links from a CSV file"""
+    try:
+        if os.path.exists(f"data/{filename}"):
+            error_df = pd.read_csv(f"data/{filename}")
+            return error_df['job_link'].tolist()
+        else:
+            print(f"Error file not found: {filename}")
+            return []
+    except Exception as e:
+        print(f"Error loading error links: {e}")
+        return []
+
+
+def save_job_data(job_data, site, portal, job_location, keyword, retry_attempt=0, is_rescraping=False):
+    """Save job data to CSV file"""
+    if not job_data:
+        print("No job data to save")
+        return None
+
+    data_frame = pd.DataFrame(job_data)
+
+    if is_rescraping:
+        filename = f"data/{site}_{portal}_{job_location}_{keyword}_rescraped.csv"
+    elif retry_attempt > 0:
+        filename = f"data/{site}_{portal}_{job_location}_{keyword}_retry_{retry_attempt}.csv"
+    else:
+        filename = f"data/{site}_{portal}_{job_location}_{keyword}.csv"
+
+    data_frame.to_csv(
+        filename,
+        index=False,
+        quotechar='"',
+        escapechar='\\',
+        encoding='utf-8-sig'
+    )
+
+    print(f"Data saved to: {filename} ({len(job_data)} records)")
+    return filename
+
+
+async def web_scraper(is_rescraping, link_file_name, portal="my", site="jobstreet", job_location="", keyword="Data-Analyst", max_pages=2, max_retries=2):
+    # Phase 1: Initialize
+    print("Initiating JobStreet Scraper with Auto-Retry Logic")
+    print(f"{portal} {site} {job_location} {keyword} {max_pages}")
+
+    # Initialize currency dictionary
+    currency_country_dictionary = {
+        "ph": ["PHP", "â‚±"],
+        "th": ["THB", "à¸¿"],
+        "my": ["MYR", "RM"],
+        "id": ["IDR", "Rp"],
+        "sg": ["SGD", "$", "S$"],
+        "vn": ["VND", "â‚«"],
+    }
+    currency_values = currency_country_dictionary[portal]
+
+    currency_dictionary = {
+        "IDR": "IDR", "MYR": "MYR", "PHP": "PHP", "THB": "THB", "USD": "USD", "SGD": "SGD", "VND": "VND",
+        "Rp": "IDR", "RM": "MYR", "â‚±": "PHP", "à¸¿": "THB", "$": "SGD", "S$": "SGD", "â‚«": "VND",
+    }
+
+    # Phase 2: Get job links
+    if is_rescraping:
+        # Extract job links from the given file
+        job_links_df = pd.read_csv(f"data/{link_file_name}", header=None)
+        job_links = job_links_df[0].tolist()
+        print(f"Loaded {len(job_links)} links from file for re-scraping")
+    else:
+        # Extract job links from the website
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=False)
+            context = await browser.new_context()
+            page = await context.new_page()
+
+            job_links = await extract_job_links(page, portal, site, job_location, keyword, max_pages)
+
+            await browser.close()
+
+        if not job_links:
+            print("No job links found. Exiting.")
+            return
+
+    # Phase 3: Process job links with retry logic
+    all_job_data = []
+    current_links = job_links
+    retry_attempt = 0
+
+    while current_links and retry_attempt <= max_retries:
+        print(f"\n{'='*60}")
+        if retry_attempt == 0:
+            print("INITIAL SCRAPING ATTEMPT")
+        else:
+            print(f"RETRY ATTEMPT {retry_attempt}")
+        print(f"{'='*60}")
+
+        # Process current batch of links
+        job_data, error_links = await process_job_links(
+            current_links, portal, site, currency_values, currency_dictionary, retry_attempt
+        )
+
+        # Add successful jobs to our collection
+        all_job_data.extend(job_data)
+
+        # Save current batch of job data
+        if job_data:
+            save_job_data(job_data, site, portal, job_location,
+                          keyword, retry_attempt, is_rescraping)
+
+        # Handle error links
+        if error_links:
+            print(f"\nFound {len(error_links)} failed links")
+            error_file = save_error_links(
+                error_links, site, portal, job_location, keyword, retry_attempt)
+
+            if retry_attempt < max_retries:
+                print(
+                    f"Will retry {len(error_links)} failed links in next attempt...")
+                current_links = error_links
+                retry_attempt += 1
+            else:
+                print(
+                    f"Max retries ({max_retries}) reached. {len(error_links)} links still failed.")
+                break
+        else:
+            print("No error links found. All jobs processed successfully!")
+            break
+
+    # Phase 4: Save final consolidated data
+    if all_job_data:
+        print(f"\n{'='*60}")
+        print("FINAL CONSOLIDATION")
+        print(f"{'='*60}")
 
         if is_rescraping:
-            csv_file = f"data/{site}_{portal}_{job_location}_{keyword}_rescraped.csv"
-            csv_error_file = f"data/{site}_{portal}_{job_location}_{keyword}_rescraped_error.csv"
+            final_filename = f"data/{site}_{portal}_{job_location}_{keyword}_rescraped_final.csv"
         else:
-            csv_file = f"data/{site}_{portal}_{job_location}_{keyword}.csv"
-            csv_error_file = f"data/{site}_{portal}_{job_location}_{keyword}_link_errors.csv"
+            final_filename = f"data/{site}_{portal}_{job_location}_{keyword}_final.csv"
 
-        data_frame.to_csv(
-            csv_file, 
+        final_df = pd.DataFrame(all_job_data)
+        final_df.to_csv(
+            final_filename,
             index=False,
-            quotechar='"', 
-            escapechar='\\', 
+            quotechar='"',
+            escapechar='\\',
             encoding='utf-8-sig'
         )
 
-        print(f"Data saved to CSV with {len(job_data)} job records")
-        print(f"Data saved at {csv_file}")
+        print(f"Final consolidated data saved to: {final_filename}")
+        print(f"Total successful jobs scraped: {len(all_job_data)}")
 
-        # Phase 5: Save Error
-        if error_number > 0:
-            error_frame = pd.DataFrame(error_link)
-            error_frame.to_csv(
-                csv_error_file, 
-                index=False,
-                quotechar='"', 
-                escapechar='\\', 
-                encoding='utf-8-sig'
-            )
+        # Summary statistics
+        initial_links = len(job_links)
+        successful_jobs = len(all_job_data)
+        failed_jobs = initial_links - successful_jobs
+        success_rate = (successful_jobs / initial_links) * \
+            100 if initial_links > 0 else 0
 
-            print(f"Error links saved to CSV with {len(error_link)} error records")
-            print(f"Error links saved at {csv_error_file}")
-        
+        print(f"\nSCRAPING SUMMARY:")
+        print(f"Initial job links: {initial_links}")
+        print(f"Successfully scraped: {successful_jobs}")
+        print(f"Failed to scrape: {failed_jobs}")
+        print(f"Success rate: {success_rate:.1f}%")
+        print(f"Total retry attempts: {retry_attempt}")
 
 
 # Run the Function
 if __name__ == "__main__":
     # User Input
-    print("| = | = | = | Job Web Scraper | = | = | = |")
+    print("| = | = | = | Job Web Scraper with Auto-Retry | = | = | = |")
 
-    rescrape_input = input("\nAre you here to rescrape? (Y/N): ").lower().strip()
+    rescrape_input = input(
+        "\nAre you here to rescrape? (Y/N): ").lower().strip()
     is_rescraping = True if rescrape_input == "y" else False
 
     if is_rescraping:
-        print("Note: The filename format is {site}_{portal}_{location}_{keyword}_error.csv")
-        link_file_name = input("File name the CSV file from the data folder: ").strip()
+        print(
+            "Note: The filename format is {site}_{portal}_{location}_{keyword}_error.csv")
+        link_file_name = input(
+            "File name the CSV file from the data folder: ").strip()
         file_parts = link_file_name.split("_")
 
         site = file_parts[0]
@@ -560,6 +666,7 @@ if __name__ == "__main__":
         job_location = file_parts[2]
         keyword = file_parts[3]
         max_pages = 0
+        max_retries = int(input("Maximum retry attempts (default 2): ") or "2")
 
     else:
         print("\nList of available Portal from JobStreet & JobsDB")
@@ -571,7 +678,10 @@ if __name__ == "__main__":
         portal = input("Choose a JobStreet Portal: ").lower().strip()
         job_location = input("Location (optional): ").strip()
         keyword = input("Job Position: ").strip().replace(" ", "-")
-        max_pages = int(input("Maximum pages to scrape (default 50): ") or "50")
+        max_pages = int(
+            input("Maximum pages to scrape (default 50): ") or "50")
+        max_retries = int(
+            input("Maximum retry attempts for failed links (default 2): ") or "2")
 
         if portal == "th":
             site = "jobsdb"
@@ -581,7 +691,9 @@ if __name__ == "__main__":
         link_file_name = ""
 
     # Terminal Logging
-    log_file = setup_logging(is_rescraping, site, portal, job_location, keyword)
+    log_file = setup_logging(
+        is_rescraping, site, portal, job_location, keyword)
 
     # Proper Run
-    asyncio.run(web_scraper(is_rescraping, link_file_name, portal, site, job_location, keyword, max_pages))
+    asyncio.run(web_scraper(is_rescraping, link_file_name, portal,
+                site, job_location, keyword, max_pages, max_retries))
