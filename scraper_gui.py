@@ -5,7 +5,7 @@ A simple GUI interface to run different job board scrapers
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 import asyncio
 import threading
 import os
@@ -15,6 +15,7 @@ from datetime import datetime
 # Import the scrapers
 try:
     from job_street_scraper import web_scraper as jobstreet_scraper
+    from job_street_scraper_new import web_scraper as jobstreet_new_scraper
     from jobnet_scraper import web_scraper as jobnet_scraper
     from vietnamworks_scraper import web_scraper as vietnamworks_scraper
     from careerviet_scraper import web_scraper as careerviet_scraper
@@ -28,7 +29,7 @@ class ScraperGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Job Scraper Interface")
-        self.root.geometry("600x700")
+        self.root.geometry("650x750")
         self.root.resizable(True, True)
 
         # Ensure data directory exists
@@ -56,6 +57,7 @@ class ScraperGUI:
 
         # Create tabs for each scraper
         self.create_jobstreet_tab()
+        self.create_jobstreet_new_tab()
         self.create_jobnet_tab()
         self.create_vietnamworks_tab()
         self.create_careerviet_tab()
@@ -107,9 +109,9 @@ class ScraperGUI:
         self.root.update()
 
     def create_jobstreet_tab(self):
-        """Create JobStreet scraper tab"""
+        """Create JobStreet scraper tab (original)"""
         frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(frame, text="JobStreet/JobsDB")
+        self.notebook.add(frame, text="JobStreet (Original)")
 
         # Portal selection
         ttk.Label(frame, text="Portal:").grid(
@@ -148,6 +150,83 @@ class ScraperGUI:
         self.js_run_btn = ttk.Button(frame, text="Run JobStreet Scraper",
                                      command=self.run_jobstreet)
         self.js_run_btn.grid(row=4, column=0, columnspan=2, pady=20)
+
+        frame.columnconfigure(1, weight=1)
+
+    def create_jobstreet_new_tab(self):
+        """Create JobStreet NEW scraper tab"""
+        frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(frame, text="JobStreet (Enhanced)")
+
+        # Rescraping option
+        self.jsn_rescrape_var = tk.BooleanVar()
+        rescrape_check = ttk.Checkbutton(frame, text="Rescraping Mode",
+                                         variable=self.jsn_rescrape_var,
+                                         command=self.toggle_rescrape_mode)
+        rescrape_check.grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=5)
+
+        # File selection frame (initially hidden)
+        self.jsn_file_frame = ttk.Frame(frame)
+        self.jsn_file_frame.grid(
+            row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        self.jsn_file_frame.grid_remove()  # Hide initially
+
+        ttk.Label(self.jsn_file_frame, text="Error CSV File:").grid(
+            row=0, column=0, sticky=tk.W, pady=2)
+        self.jsn_file_var = tk.StringVar()
+        file_entry = ttk.Entry(self.jsn_file_frame,
+                               textvariable=self.jsn_file_var, width=25)
+        file_entry.grid(row=0, column=1, sticky=(
+            tk.W, tk.E), padx=(5, 2), pady=2)
+        browse_btn = ttk.Button(self.jsn_file_frame, text="Browse",
+                                command=self.browse_error_file)
+        browse_btn.grid(row=0, column=2, padx=(2, 0), pady=2)
+        self.jsn_file_frame.columnconfigure(1, weight=1)
+
+        # Normal scraping options frame
+        self.jsn_normal_frame = ttk.Frame(frame)
+        self.jsn_normal_frame.grid(
+            row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+
+        # Portal selection
+        ttk.Label(self.jsn_normal_frame, text="Portal:").grid(
+            row=0, column=0, sticky=tk.W, pady=2)
+        self.jsn_portal_var = tk.StringVar()
+        portal_combo = ttk.Combobox(self.jsn_normal_frame, textvariable=self.jsn_portal_var,
+                                    values=["id - Indonesia", "my - Malaysia", "sg - Singapore",
+                                            "ph - Philippines", "th - Thailand"],
+                                    state="readonly", width=25)
+        portal_combo.grid(row=0, column=1, sticky=(
+            tk.W, tk.E), padx=(5, 0), pady=2)
+        portal_combo.current(0)
+
+        # Location
+        ttk.Label(self.jsn_normal_frame, text="Location (optional):").grid(
+            row=1, column=0, sticky=tk.W, pady=2)
+        self.jsn_location_var = tk.StringVar()
+        ttk.Entry(self.jsn_normal_frame, textvariable=self.jsn_location_var, width=30).grid(
+            row=1, column=1, sticky=(tk.W, tk.E), padx=(5, 0), pady=2)
+
+        # Keyword
+        ttk.Label(self.jsn_normal_frame, text="Job Position:").grid(
+            row=2, column=0, sticky=tk.W, pady=2)
+        self.jsn_keyword_var = tk.StringVar(value="Data-Analyst")
+        ttk.Entry(self.jsn_normal_frame, textvariable=self.jsn_keyword_var, width=30).grid(
+            row=2, column=1, sticky=(tk.W, tk.E), padx=(5, 0), pady=2)
+
+        # Max pages
+        ttk.Label(self.jsn_normal_frame, text="Max Pages:").grid(
+            row=3, column=0, sticky=tk.W, pady=2)
+        self.jsn_pages_var = tk.StringVar(value="5")
+        ttk.Entry(self.jsn_normal_frame, textvariable=self.jsn_pages_var, width=30).grid(
+            row=3, column=1, sticky=(tk.W, tk.E), padx=(5, 0), pady=2)
+
+        self.jsn_normal_frame.columnconfigure(1, weight=1)
+
+        # Run button
+        self.jsn_run_btn = ttk.Button(frame, text="Run Enhanced JobStreet Scraper",
+                                      command=self.run_jobstreet_new)
+        self.jsn_run_btn.grid(row=4, column=0, columnspan=2, pady=20)
 
         frame.columnconfigure(1, weight=1)
 
@@ -240,9 +319,30 @@ class ScraperGUI:
 
         frame.columnconfigure(1, weight=1)
 
+    def toggle_rescrape_mode(self):
+        """Toggle between rescraping and normal mode for JobStreet New"""
+        if self.jsn_rescrape_var.get():
+            self.jsn_file_frame.grid()
+            self.jsn_normal_frame.grid_remove()
+        else:
+            self.jsn_file_frame.grid_remove()
+            self.jsn_normal_frame.grid()
+
+    def browse_error_file(self):
+        """Browse for error CSV file"""
+        filename = filedialog.askopenfilename(
+            title="Select Error CSV File",
+            initialdir="data",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if filename:
+            # Extract just the filename from the full path
+            self.jsn_file_var.set(os.path.basename(filename))
+
     def disable_all_buttons(self):
         """Disable all run buttons"""
         self.js_run_btn.config(state='disabled')
+        self.jsn_run_btn.config(state='disabled')
         self.jn_run_btn.config(state='disabled')
         self.vw_run_btn.config(state='disabled')
         self.cv_run_btn.config(state='disabled')
@@ -250,12 +350,15 @@ class ScraperGUI:
     def enable_all_buttons(self):
         """Enable all run buttons"""
         self.js_run_btn.config(state='normal')
+        self.jsn_run_btn.config(state='normal')
         self.jn_run_btn.config(state='normal')
         self.vw_run_btn.config(state='normal')
         self.cv_run_btn.config(state='normal')
 
     def validate_input(self, pages_str, scraper_name):
         """Validate input parameters"""
+        if not pages_str:  # Allow empty for rescraping
+            return True
         try:
             pages = int(pages_str)
             if pages <= 0:
@@ -283,7 +386,7 @@ class ScraperGUI:
         thread.start()
 
     def run_jobstreet(self):
-        """Run JobStreet scraper"""
+        """Run JobStreet scraper (original)"""
         if not self.validate_input(self.js_pages_var.get(), "JobStreet"):
             return
 
@@ -314,6 +417,82 @@ class ScraperGUI:
                 self.root.after(0, lambda: self.update_status("Ready"))
 
         self.run_scraper_async(run_scraper, "JobStreet")
+
+    def run_jobstreet_new(self):
+        """Run JobStreet NEW scraper"""
+        is_rescraping = self.jsn_rescrape_var.get()
+
+        if is_rescraping:
+            # Validate file selection
+            if not self.jsn_file_var.get().strip():
+                messagebox.showerror(
+                    "Invalid Input", "Please select an error CSV file for rescraping")
+                return
+            link_file_name = self.jsn_file_var.get().strip()
+
+            # Extract parameters from filename
+            try:
+                file_parts = link_file_name.replace("_error.csv", "").replace(
+                    "_link_errors.csv", "").split("_")
+                if len(file_parts) >= 4:
+                    site = file_parts[0]
+                    portal = file_parts[1]
+                    job_location = file_parts[2]
+                    keyword = file_parts[3]
+                    max_pages = 0
+                else:
+                    raise ValueError("Invalid filename format")
+            except Exception:
+                messagebox.showerror("Invalid Input",
+                                     "Invalid filename format. Expected format: site_portal_location_keyword_error.csv")
+                return
+        else:
+            # Validate normal input
+            if not self.validate_input(self.jsn_pages_var.get(), "JobStreet New"):
+                return
+
+            portal = self.jsn_portal_var.get().split(" - ")[0]
+            job_location = self.jsn_location_var.get().strip()
+            keyword = self.jsn_keyword_var.get().strip().replace(" ", "-")
+            max_pages = int(self.jsn_pages_var.get())
+            site = "jobsdb" if portal == "th" else "jobstreet"
+            link_file_name = ""
+
+        self.disable_all_buttons()
+        mode_text = "rescraping" if is_rescraping else "scraping"
+        self.update_status(f"Running JobStreet Enhanced {mode_text}...")
+
+        if is_rescraping:
+            self.log_message(
+                f"Starting JobStreet Enhanced rescraping - File: {link_file_name}")
+        else:
+            self.log_message(
+                f"Starting JobStreet Enhanced scraping - Portal: {portal}, Keyword: {keyword}, Pages: {max_pages}")
+
+        async def run_scraper():
+            try:
+                await jobstreet_new_scraper(
+                    is_rescraping=is_rescraping,
+                    link_file_name=link_file_name,
+                    portal=portal,
+                    site=site,
+                    job_location=job_location,
+                    keyword=keyword,
+                    max_pages=max_pages
+                )
+                self.log_message(
+                    "JobStreet Enhanced scraper completed successfully!")
+                messagebox.showinfo(
+                    "Success", "JobStreet Enhanced scraper completed successfully!\nCheck the 'data' directory for output files.")
+            except Exception as e:
+                error_msg = f"JobStreet Enhanced scraper failed: {str(e)}"
+                self.log_message(error_msg)
+                messagebox.showerror("Error", error_msg)
+            finally:
+                self.root.after(0, self.enable_all_buttons)
+                self.root.after(0, lambda: self.update_status("Ready"))
+
+        self.run_scraper_async(run_scraper, "JobStreet Enhanced")
 
     def run_jobnet(self):
         """Run JobNet scraper"""
