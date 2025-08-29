@@ -459,7 +459,7 @@ async def scrape_single_job(page, link, portal, site, currency_values, currency_
             "job_function": job_function,
             "listing_type": listing_type,
             "emails": NA,
-            # "description": description,
+            "description": description,
             "company_industry": company_industry,
             "company_url": company_url,
             "company_logo": company_logo,
@@ -467,7 +467,7 @@ async def scrape_single_job(page, link, portal, site, currency_values, currency_
             "company_addresses": company_addresses,
             "company_num_emp": company_num_emp,
             "company_revenue": NA,
-            # "company_description": company_description,
+            "company_description": company_description,
         }
 
     except Exception as e:
@@ -588,18 +588,18 @@ async def web_scraper(is_rescraping, link_file_name, portal="my", site="jobstree
 
     # Initialize currency dictionary
     currency_country_dictionary = {
-        "ph": ["PHP", "â‚±"],
-        "th": ["THB", "à¸¿"],
+        "ph": ["PHP", "₱"],
+        "th": ["THB", "฿"],
         "my": ["MYR", "RM"],
         "id": ["IDR", "Rp"],
         "sg": ["SGD", "$", "S$"],
-        "vn": ["VND", "â‚«"],
+        "vn": ["VND", "₫"],
     }
     currency_values = currency_country_dictionary[portal]
 
     currency_dictionary = {
         "IDR": "IDR", "MYR": "MYR", "PHP": "PHP", "THB": "THB", "USD": "USD", "SGD": "SGD", "VND": "VND",
-        "Rp": "IDR", "RM": "MYR", "â‚±": "PHP", "à¸¿": "THB", "$": "SGD", "S$": "SGD", "â‚«": "VND",
+        "Rp": "IDR", "RM": "MYR", "₱": "PHP", "฿": "THB", "$": "SGD", "S$": "SGD", "₫": "VND",
     }
 
     # Phase 2: Get job links
