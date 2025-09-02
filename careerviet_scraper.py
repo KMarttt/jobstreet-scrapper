@@ -5,26 +5,20 @@ import pandas as pd
 from pandas import NA
 from datetime import datetime, timedelta
 import re
-import sys
 
+async def scroll_to_bottom(page, pause=1):
+    last_height = await page.evaluate("document.body.scrollHeight")
 
-# -----------------------------
-# Logging setup for cmd terminal
-log_file = open("data/output_jobstreet_sg_data-analyst.txt", "w", encoding="utf-8")
+    while True:
+        # Scroll down
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        await asyncio.sleep(pause)  # wait for new content to load
 
-class Tee:
-    def __init__(self, *files):
-        self.files = files
-    def write(self, obj):
-        for f in self.files:
-            f.write(obj)
-            f.flush()
-    def flush(self):
-        for f in self.files:
-            f.flush()
-
-sys.stdout = sys.stderr = Tee(sys.stdout, log_file)
-# -----------------------------
+        # Check if page height changed (new content loaded)
+        new_height = await page.evaluate("document.body.scrollHeight")
+        if new_height == last_height:
+            break  # no more content
+        last_height = new_height
 
 async def parse_text_content(page, selector):
     # Check if the element exists
@@ -92,71 +86,76 @@ async def parse_salary(page, selector, currency_values):
     # Select and process salary information
 
     # salary_text = (await page.locator(selector).text_content()).strip().lower()
-    salary_text = (await parse_text_content(page, selector)).lower()
+    salary_text = (await parse_text_content(page, selector))
     print(salary_text)
 
-    if salary_text != "negotiable" and salary_text != "competitive":
-        salary_source = "direct_data"
-        # Select the salary value (with units)
-        numbers = re.findall(r"\d+(?:,\d+)*(?:\.\d+)?\s*(?:million|mil|m|k|thousand|thousands)?\b", salary_text, re.IGNORECASE)
+    if not  pd.isna(salary_text):
+        salary_text_lower = salary_text.strip().lower()
+    
+        if salary_text_lower != "negotiable" and salary_text_lower != "competitive":
+            salary_source = "direct_data"
+            # Select the salary value (with units)
+            numbers = re.findall(r"\d+(?:,\d+)*(?:\.\d+)?\s*(?:million|mil|m|k|thousand|thousands)?\b", salary_text_lower, re.IGNORECASE)
 
-        # Parse the numbers (conversion & formatting)
-        parsed_numbers = []
-        for n in numbers:
-            n = n.replace(",","").strip()
+            # Parse the numbers (conversion & formatting)
+            parsed_numbers = []
+            for n in numbers:
+                n = n.replace(",","").strip()
 
-            if re.search(r"(million|mil|m)\b", n):
-                num_part = re.sub(r"(million|mil|m)\b", "", n).strip()
-                parsed_numbers.append(int(float(num_part) * 1_000_000))   
-            elif re.search(r"(k|thousand|thousands)\b", n):
-                num_part = re.sub(r"(k|thousand|thousands)\b", "", n).strip()
-                parsed_numbers.append(int(float(num_part) * 1_000))   
+                if re.search(r"(million|mil|m)\b", n):
+                    num_part = re.sub(r"(million|mil|m)\b", "", n).strip()
+                    parsed_numbers.append(int(float(num_part) * 1_000_000))   
+                elif re.search(r"(k|thousand|thousands)\b", n):
+                    num_part = re.sub(r"(k|thousand|thousands)\b", "", n).strip()
+                    parsed_numbers.append(int(float(num_part) * 1_000))   
+                else:
+                    parsed_numbers.append(int(float(n)))
+
+            # Assigning min and max sallary:
+            if len(parsed_numbers) > 1:
+                min_amount = parsed_numbers[0] if parsed_numbers[0] < parsed_numbers[1] else parsed_numbers[1]
+                max_amount = parsed_numbers[0] if parsed_numbers[0] > parsed_numbers[1] else parsed_numbers[1]
+            elif "up to" in salary_text_lower:
+                min_amount = 0
+                max_amount = parsed_numbers[0]
+            elif "starting from" in salary_text_lower:
+                min_amount = parsed_numbers[0]
+                max_amount = 0
+            elif len(parsed_numbers) == 1:
+                min_amount = parsed_numbers[0]
+                max_amount = parsed_numbers[0]
             else:
-                parsed_numbers.append(int(float(n)))
-
-        # Assigning min and max sallary:
-        if len(parsed_numbers) > 1:
-            min_amount = parsed_numbers[0] if parsed_numbers[0] < parsed_numbers[1] else parsed_numbers[1]
-            max_amount = parsed_numbers[0] if parsed_numbers[0] > parsed_numbers[1] else parsed_numbers[1]
-        elif "up to" in salary_text:
-            min_amount = 0
-            max_amount = parsed_numbers[0]
-        elif "starting from" in salary_text:
-            min_amount = parsed_numbers[0]
-            max_amount = 0
-        elif len(parsed_numbers) == 1:
-            min_amount = parsed_numbers[0]
-            max_amount = parsed_numbers[0]
+                min_amount = NA
+                max_amount = NA
+            print(min_amount, max_amount)
+            
+            # Setting the currency
+            for c in currency_values:
+                if c.lower() in salary_text_lower:
+                    currency = currency_values[c]
+                    break
+            
+            # Determining salary interval
+            if "year" in salary_text_lower:
+                interval = "yearly"
+            elif "month" in salary_text_lower:
+                interval = "monthly"
+            elif "week" in salary_text_lower:
+                interval = "weekly"
+            elif "day" in salary_text_lower:
+                interval = "daily"
+            elif "hour" in salary_text_lower:
+                interval = "hourly"
+            else:
+                interval = NA
+            
+            print(f"Salary: {salary_text_lower}")
+            print(f"Min Amount: {min_amount}")
+            print(f"Max Amount: {max_amount}")
+            print(f"Currency: {currency}")
+            print(f"Interval: {interval}")
         else:
-            min_amount = NA
-            max_amount = NA
-        print(min_amount, max_amount)
-        
-        # Setting the currency
-        for c in currency_values:
-            if c.lower() in salary_text:
-                currency = currency_values[c]
-                break
-        
-        # Determining salary interval
-        if "year" in salary_text:
-            interval = "yearly"
-        elif "month" in salary_text:
-            interval = "monthly"
-        elif "week" in salary_text:
-            interval = "weekly"
-        elif "day" in salary_text:
-            interval = "daily"
-        elif "hour" in salary_text:
-            interval = "hourly"
-        else:
-            interval = NA
-        
-        print(f"Salary: {salary_text}")
-        print(f"Min Amount: {min_amount}")
-        print(f"Max Amount: {max_amount}")
-        print(f"Currency: {currency}")
-        print(f"Interval: {interval}")
+            return NA, NA, NA, NA, NA
     else:
         return NA, NA, NA, NA, NA
     
@@ -164,10 +163,14 @@ async def parse_salary(page, selector, currency_values):
 
 async def parse_job_function(page, selector):
     job_function_raw_text = await parse_text_content(page, selector)
-    job_function_text = re.sub(r'\s+', ' ', job_function_raw_text)
-    job_function = [item.strip() for item in job_function_text.split(",") if item.strip()]
-    print(f"Job Function: {job_function}")
-    return job_function
+    if not pd.isna(job_function_raw_text):
+        job_function_text = re.sub(r'\s+', ' ', job_function_raw_text)
+        job_function = [item.strip() for item in job_function_text.split(",") if item.strip()]
+        print(f"Job Function: {job_function}")
+        
+        return job_function
+    else:
+        return NA
 
 async def parse_year_of_experience(page, selector):
     year_of_experience_raw = await parse_text_content(page, selector)
@@ -371,7 +374,7 @@ async def parse_company_info(page, job_template_type):
     return company, company_url, company_logo, company_url_direct, company_addresses, company_num_emp, company_description
 
 
-async def web_scraper(keyword="data-mining", max_pages=50):
+async def web_scraper(keyword, max_pages):
     # Phase 1: Initiate
     print("Initiating Career Viet Scraper")
     print(f"{keyword} {max_pages}")
@@ -401,8 +404,11 @@ async def web_scraper(keyword="data-mining", max_pages=50):
             try:
                 await page.goto(url, timeout=30000) # 30 second timeouut
 
+                # Scroll to bottom to load more job links
+                await scroll_to_bottom(page, pause=2)
+
                 job_item_links = page.locator(
-                    "//div[contains(@class, 'title')]/h2/a[@class='job_link']"
+                    "//div[@class='figcaption']/div[contains(@class, 'title')]/h2/a[@class='job_link']"
                 )
 
                 link_count = await job_item_links.count()
@@ -465,9 +471,15 @@ async def web_scraper(keyword="data-mining", max_pages=50):
 
         # Initialize data list
         job_data = []
+        error_number = 0
         
         print("\nExtracting Job Details")
-        for link in job_links:
+        # for link in job_links:
+        for i, link in enumerate(job_links, 1):
+            print(f"Processing job {i}/{len(job_links)}")
+            print(f"Error Count: {error_number}")
+
+
             job_id = link.split(".html")[0].rsplit(".", 1)[1]
             job_url = link
 
@@ -648,7 +660,7 @@ async def web_scraper(keyword="data-mining", max_pages=50):
                 )
 
         # Save to CSV
-        data_frame.to_csv(f"data/careerviet_vn_{keyword}.csv", 
+        data_frame.to_csv(f"data/careerviet_vn__{keyword}.csv", 
             index=False, 
             quotechar='"', 
             escapechar='\\', 

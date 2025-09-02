@@ -38,6 +38,16 @@ def setup_logging(is_rescraping, keyword, retry_attempt=0):
 CONCURRENCY_LIMIT = 10
 BATCH_LIMIT = 3000
 
+async def scroll_to_bottom(page, pause=1):
+    last_height = await page.evaluate("document.body.scrollHeight")
+    while True:
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        await asyncio.sleep(pause)
+        new_height = await page.evaluate("document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
 async def parse_text_content(page, selector):
     locator = page.locator(selector)
     if await locator.count() > 0:
@@ -65,7 +75,7 @@ async def parse_date_posted(page, selector):
             date_posted_object = datetime.strptime(date_posted_text, "%d %b %Y")
             return date_posted_object.strftime("%Y-%m-%d")
         except ValueError:
-            pass 
+            pass
         match = re.search(
             r"(\d+)\s*(second|minute|hour|day|week|month|year)",
             date_posted_text
@@ -156,7 +166,7 @@ async def parse_salary(page, currency_values):
             interval = "hourly"
         else:
             interval = NA
-        return salary_source, interval, min_amount, max_amount, currency 
+        return salary_source, interval, min_amount, max_amount, currency
     else:
         return NA, NA, NA, NA, NA
 
@@ -166,27 +176,27 @@ async def parse_other_job_data(page):
             "//label[contains(., 'YEAR OF EXPERIENCE')]/following-sibling::p[1]"
         ).text_content()).strip()
         year_of_experience = year_of_experience_text if year_of_experience_text != "Not shown" else NA
-        
+
         education_level_text = (await page.locator(
             "//label[contains(., 'EDUCATION LEVEL')]/following-sibling::p[1]"
         ).text_content()).strip()
         education_level = education_level_text if education_level_text != "Not shown"  else NA
-        
+
         age_preference_text = (await page.locator(
             "//label[contains(., 'AGE PREFERENCE')]/following-sibling::p[1]"
         ).text_content()).strip()
         age_preference = age_preference_text if age_preference_text != "Not shown" else NA
-        
+
         skill_text = (await page.locator(
             "//label[contains(., 'SKILL')]/following-sibling::p[1]"
         ).text_content()).strip()
         skill = skill_text if skill_text != "Not shown" or pd.isna(skill_text) else NA
-        
+
         preferred_language_text = (await page.locator(
             "//label[contains(., 'PREFERRED LANGUAGE')]/following-sibling::p[1]"
         ).text_content()).strip()
         preferred_language = preferred_language_text if preferred_language_text != "Not shown" else NA
-        
+
         nationality_text = (await page.locator(
             "//label[contains(., 'NATIONALITY')]/following-sibling::p[1]"
         ).text_content()).strip()
@@ -213,19 +223,19 @@ async def parse_company_info(page):
             await read_more_button.click(force=True)
             await page.wait_for_timeout(500)
         company_industry = await parse_text_content(
-            page, 
+            page,
             "//p[contains(@class, 'type') and contains(., 'Industry')]/following-sibling::p[1]"
         )
         company_addresses = await parse_text_content(
-            page, 
+            page,
             "//p[contains(@class, 'type') and contains(., 'Address')]/following-sibling::div/div"
         )
         company_num_emp = await parse_text_content(
-            page, 
+            page,
             "//p[contains(@class, 'type') and contains(., 'Size')]/following-sibling::p[1]"
         )
         company_description = await parse_text_content(
-            page, 
+            page,
             "//h2[contains(., 'About Us')]/following-sibling::div[1]/div/p"
         )
     else:
@@ -272,6 +282,11 @@ async def scrape_single_job(page, link, currency_values):
         job_url = f"https://www.vietnamworks.com/{link}"
         print(job_url)
         await page.goto(job_url, wait_until="domcontentloaded")
+        
+        # Ensure page is fully loaded
+        await scroll_to_bottom(page, pause=2)
+        await page.wait_for_selector("//h2[contains(., 'Job Information')]/following-sibling::div[last()]/div[1]//button[contains(., 'View more')]")
+
         site_buttons = [
             page.locator("//h2[contains(., 'Job Information')]/following-sibling::div[last()]/div[1]//button[contains(., 'View more')]"),
             page.locator("//button[contains(., 'View full job description')]")
@@ -281,8 +296,14 @@ async def scrape_single_job(page, link, currency_values):
                 await button.hover()
                 await button.click(force=True)
                 await page.wait_for_timeout(500)
+
         title = await parse_text_content(page, "h1[name='title']")
         location = await parse_location(page, "//h2[contains(., 'Job Locations')]/following-sibling::div[1]/div")
+
+        # Ensure key data are loaded
+        await page.wait_for_selector("//label[contains(., 'POSTED DATE')]/following-sibling::p[1]", timeout=15000)
+        await page.wait_for_selector("//label[contains(., 'WORKING TYPE')]/following-sibling::p[1]", timeout=15000)
+
         date_posted = await parse_date_posted(page, "//label[contains(., 'POSTED DATE')]/following-sibling::p[1]")
         job_type = await parse_text_content(page, "//label[contains(., 'WORKING TYPE')]/following-sibling::p[1]")
         salary_source, interval, min_amount, max_amount, currency = await parse_salary(page, currency_values)
@@ -381,6 +402,7 @@ async def extract_job_links(keyword, max_pages):
             print(f"Scraping page {current_page}: {url}")
             try:
                 await page.goto(url, timeout = 30000)
+                await scroll_to_bottom(page, pause=2)
                 try:
                     await page.wait_for_selector(
                         "a.img_job_card",
