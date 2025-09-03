@@ -6,6 +6,21 @@ from pandas import NA
 from datetime import datetime, timedelta
 import re
 
+async def scroll_to_bottom(page, pause=1):
+    last_height = await page.evaluate("document.body.scrollHeight")
+
+    while True:
+        # Scroll down
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        await asyncio.sleep(pause)  # wait for new content to load
+
+        # Check if page height changed (new content loaded)
+        new_height = await page.evaluate("document.body.scrollHeight")
+        if new_height == last_height:
+            break  # no more content
+        last_height = new_height
+
+
 async def parse_text_content(page, selector):
     # Check if the element exists
     locator = page.locator(selector)
@@ -290,6 +305,9 @@ async def web_scraper(keyword="data-analyst", max_pages=2):
             try:
                 await page.goto(url, timeout = 30000) # 30 second timeouut
 
+                # Scroll to bottom to load more job links
+                await scroll_to_bottom(page, pause=2)
+
                 try:
                     await page.wait_for_selector(
                         "a.img_job_card",
@@ -375,10 +393,14 @@ async def web_scraper(keyword="data-analyst", max_pages=2):
 
         # Initialize job list
         job_data = []
-
+        error_number = 0
+        
         # Extract job details
         print("\nExtracting Job Details")
-        for link in job_links:   
+        for i, link in enumerate(job_links, 1):
+            print(f"Processing job {i}/{len(job_links)}")
+            print(f"Error Count: {error_number}") 
+
             job_id = re.search(r"-(\d+)-jd", link).group(1)
             job_url = f"https://www.vietnamworks.com/{link}"
             print(job_url)
@@ -416,7 +438,11 @@ async def web_scraper(keyword="data-analyst", max_pages=2):
                 page,
                 "//h2[contains(., 'Job Locations')]/following-sibling::div[1]/div"
             )
-            
+
+            # Ensure key data are loaded
+            await page.wait_for_selector("//label[contains(., 'POSTED DATE')]/following-sibling::p[1]", timeout=15000)
+            await page.wait_for_selector("//label[contains(., 'WORKING TYPE')]/following-sibling::p[1]", timeout=15000)
+
             date_posted = await parse_date_posted(
                 page,
                 "//label[contains(., 'POSTED DATE')]/following-sibling::p[1]"
@@ -526,8 +552,8 @@ if __name__ == "__main__":
     # page_number = int(input("Number of pages you want to scrape: "))
     max_pages = int(input("Maximum pages to scrape (default 50): ") or "50")
 
-    # # Proper Run
-    # asyncio.run(web_scraper(keyword, max_pages))
+    # Proper Run
+    asyncio.run(web_scraper(keyword, max_pages))
 
-    # Test Run
-    asyncio.run(web_scraper())
+    # # Test Run
+    # asyncio.run(web_scraper())
