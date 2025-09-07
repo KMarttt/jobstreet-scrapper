@@ -210,9 +210,16 @@ class ScraperGUI:
         # Keyword
         ttk.Label(self.jsn_normal_frame, text="Job Position:").grid(
             row=2, column=0, sticky=tk.W, pady=2)
-        self.jsn_keyword_var = tk.StringVar(value="Data-Analyst")
-        ttk.Entry(self.jsn_normal_frame, textvariable=self.jsn_keyword_var, width=30).grid(
+
+        # Create a Text widget for multiple lines
+        self.jsn_keyword_text = tk.Text(
+            self.jsn_normal_frame, width=30, height=4, wrap=tk.WORD)
+        self.jsn_keyword_text.grid(
             row=2, column=1, sticky=(tk.W, tk.E), padx=(5, 0), pady=2)
+
+        # Insert default value
+        self.jsn_keyword_text.insert(
+            '1.0', "Data Analyst\nData Scientist\nData Engineer")
 
         # Max pages
         ttk.Label(self.jsn_normal_frame, text="Max Pages:").grid(
@@ -453,7 +460,8 @@ class ScraperGUI:
 
             portal = self.jsn_portal_var.get().split(" - ")[0]
             job_location = self.jsn_location_var.get().strip()
-            keyword = self.jsn_keyword_var.get().strip().replace(" ", "-")
+            keywords = [line.strip().replace(
+                " ", "-") for line in self.jsn_keyword_text.get('1.0', tk.END).strip().split('\n') if line.strip()]
             max_pages = int(self.jsn_pages_var.get())
             site = "jobsdb" if portal == "th" else "jobstreet"
             link_file_name = ""
@@ -462,28 +470,22 @@ class ScraperGUI:
         mode_text = "rescraping" if is_rescraping else "scraping"
         self.update_status(f"Running JobStreet Enhanced {mode_text}...")
 
-        if is_rescraping:
-            self.log_message(
-                f"Starting JobStreet Enhanced rescraping - File: {link_file_name}")
-        else:
-            self.log_message(
-                f"Starting JobStreet Enhanced scraping - Portal: {portal}, Keyword: {keyword}, Pages: {max_pages}")
-
         async def run_scraper():
             try:
-                await jobstreet_new_scraper(
-                    is_rescraping=is_rescraping,
-                    link_file_name=link_file_name,
-                    portal=portal,
-                    site=site,
-                    job_location=job_location,
-                    keyword=keyword,
-                    max_pages=max_pages
-                )
-                self.log_message(
-                    "JobStreet Enhanced scraper completed successfully!")
-                messagebox.showinfo(
-                    "Success", "JobStreet Enhanced scraper completed successfully!\nCheck the 'data' directory for output files.")
+                for keyword in keywords:
+                    self.log_message(
+                        f"Starting JobStreet Enhanced scraping - Portal: {portal}, Keyword: {keyword}, Pages: {max_pages}")
+                    await jobstreet_new_scraper(
+                        is_rescraping=is_rescraping,
+                        link_file_name=link_file_name,
+                        portal=portal,
+                        site=site,
+                        job_location=job_location,
+                        keyword=keyword,
+                        max_pages=max_pages
+                    )
+                    self.log_message(
+                        f"JobStreet Enhanced scraper completed for keyword: {keyword}")
             except Exception as e:
                 error_msg = f"JobStreet Enhanced scraper failed: {str(e)}"
                 self.log_message(error_msg)

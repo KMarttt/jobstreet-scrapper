@@ -459,7 +459,7 @@ async def scrape_single_job(page, link, portal, site, currency_values, currency_
             "job_function": job_function,
             "listing_type": listing_type,
             "emails": NA,
-            # "description": description,
+            "description": description,
             "company_industry": company_industry,
             "company_url": company_url,
             "company_logo": company_logo,
@@ -467,7 +467,7 @@ async def scrape_single_job(page, link, portal, site, currency_values, currency_
             "company_addresses": company_addresses,
             "company_num_emp": company_num_emp,
             "company_revenue": NA,
-            # "company_description": company_description,
+            "company_description": company_description,
         }
 
     except Exception as e:

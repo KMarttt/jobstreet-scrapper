@@ -6,6 +6,7 @@ from pandas import NA
 from datetime import datetime, timedelta
 import re
 
+
 async def parse_text_content(page, selector):
     # Check if the element exists
     locator = page.locator(selector).first
@@ -13,6 +14,7 @@ async def parse_text_content(page, selector):
         return (await locator.text_content()).strip()
     else:
         return NA
+
 
 async def parse_date_posted(page, selector):
     date_text = await parse_text_content(page, selector)
@@ -22,13 +24,14 @@ async def parse_date_posted(page, selector):
         "Posted", "").replace("ago", "").strip()
     print(f"Relative date text: {relative_date_text!r}")
 
-    if "day" in relative_date_text: # if the date is in days
+    if "day" in relative_date_text:  # if the date is in days
         days = int(re.sub(r"[^\d]", "", relative_date_text))
         return (current_date - timedelta(days=days)).strftime(r"%Y-%m-%d")
-    elif "hour" in relative_date_text: # If the date is in hour(s) ago
+    elif "hour" in relative_date_text:  # If the date is in hour(s) ago
         return current_date.strftime(r"%Y-%m-%d")
     else:  # If the date is in minute(s) or second(s)
         return current_date.strftime(r"%Y-%m-%d")
+
 
 async def parse_location(page, selector):
     location_section = await parse_text_content(page, selector)
@@ -57,7 +60,7 @@ async def parse_salary(page, selector, currency_values, currency_dictionary, por
     if not pd.isna(salary_text):
         salary_text = salary_text.lower()
         salary_source = "direct_data"
-        
+
         # Select the salary value
         if portal == "id":
             # Designed for Indoensian Portal where the salary separator is a period or a comma -- does not consider decimal
@@ -70,15 +73,16 @@ async def parse_salary(page, selector, currency_values, currency_dictionary, por
             # Parse the numbers (conversion & formatting)
             parsed_numbers = []
             for n in numbers:
-                n = n.replace(",","").replace(".","").strip()
+                n = n.replace(",", "").replace(".", "").strip()
                 print("n:", n)
 
                 if re.search(r"(million|mil|m)\b", n):
                     num_part = re.sub(r"(million|mil|m)\b", "", n).strip()
-                    parsed_numbers.append(int(float(num_part) * 1_000_000))   
+                    parsed_numbers.append(int(float(num_part) * 1_000_000))
                 elif re.search(r"(k|thousand|thousands)\b", n):
-                    num_part = re.sub(r"(k|thousand|thousands)\b", "", n).strip()
-                    parsed_numbers.append(int(float(num_part) * 1_000))   
+                    num_part = re.sub(
+                        r"(k|thousand|thousands)\b", "", n).strip()
+                    parsed_numbers.append(int(float(num_part) * 1_000))
                 else:
                     print("parsed n:", n)
                     parsed_numbers.append(int(float(n)))
@@ -94,14 +98,15 @@ async def parse_salary(page, selector, currency_values, currency_dictionary, por
             # Parse the numbers (conversion & formatting)
             parsed_numbers = []
             for n in numbers:
-                n = n.replace(",","").strip()
+                n = n.replace(",", "").strip()
 
                 if re.search(r"(million|mil|m)\b", n):
                     num_part = re.sub(r"(million|mil|m)\b", "", n).strip()
-                    parsed_numbers.append(int(float(num_part) * 1_000_000))   
+                    parsed_numbers.append(int(float(num_part) * 1_000_000))
                 elif re.search(r"(k|thousand|thousands)\b", n):
-                    num_part = re.sub(r"(k|thousand|thousands)\b", "", n).strip()
-                    parsed_numbers.append(int(float(num_part) * 1_000))   
+                    num_part = re.sub(
+                        r"(k|thousand|thousands)\b", "", n).strip()
+                    parsed_numbers.append(int(float(num_part) * 1_000))
                 else:
                     parsed_numbers.append(int(float(n)))
 
@@ -156,6 +161,7 @@ async def parse_salary(page, selector, currency_values, currency_dictionary, por
 
     return salary_source, interval, min_amount, max_amount, currency
 
+
 async def parse_company_logo(page, selector):
     logo = page.locator(selector)
     if await logo.count() > 0:
@@ -164,6 +170,7 @@ async def parse_company_logo(page, selector):
         return await logo.get_attribute("src")
     else:
         return NA
+
 
 async def parse_company_info(portal, site, page):
     link_locator = page.locator(
@@ -192,17 +199,17 @@ async def parse_company_info(portal, site, page):
         )
 
         company_addresses = await parse_text_content(
-            page, 
+            page,
             "//h3[contains(text(), 'Primary location')]/parent::div/following-sibling::div//span"
         )
 
         company_num_emp = await parse_text_content(
-            page, 
+            page,
             "//h3[contains(text(), 'Company size')]/parent::div/following-sibling::div//span"
         )
 
         company_description = await parse_text_content(
-            page, 
+            page,
             "//h2[contains(text(), 'Company overview')]/ancestor::div[3]/following-sibling::div[1]/div/div[last()]"
         )
 
@@ -210,7 +217,7 @@ async def parse_company_info(portal, site, page):
         return NA, NA, NA, NA, NA, NA
 
     return company_industry, company_url, company_url_direct, company_addresses, company_num_emp, company_description
-    
+
 
 async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-Analyst", max_pages=2):
     # Phase 1: Initiate
@@ -338,70 +345,68 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
 
             try:
                 job_id = link.split("/job/")[1].split("?")[0]
-                
+
                 job_url = f"https://{portal}.{site}.com{link}"
                 print(f"Job URL: {job_url}")
                 await page.goto(job_url, timeout=30000)
 
                 title = await parse_text_content(
-                    page, 
+                    page,
                     "//h1[@data-automation='job-detail-title']"
                 )
 
                 company = await parse_text_content(
-                    page, 
+                    page,
                     "//span[@data-automation='advertiser-name']"
                 )
 
                 location, is_remote, work_setup = await parse_location(
-                    page, 
+                    page,
                     "span[data-automation='job-detail-location']"
                 )
-                
+
                 date_posted = await parse_date_posted(
-                    page, 
+                    page,
                     "xpath=(//span[contains(text(),'Posted')])[1]"
                 )
-                
 
                 job_type = await parse_text_content(
-                    page, 
+                    page,
                     "//span[@data-automation='job-detail-work-type']"
                 )
 
                 salary_source, interval, min_amount, max_amount, currency = await parse_salary(
-                    page, 
-                    "span[data-automation='job-detail-salary']", 
-                    currency_values, 
+                    page,
+                    "span[data-automation='job-detail-salary']",
+                    currency_values,
                     currency_dictionary,
                     portal
                 )
-                
 
                 job_function = await parse_text_content(
-                    page, 
+                    page,
                     "//span[@data-automation='job-detail-classifications']"
                 )
 
                 listing_type = link.split("type=")[1].split(
                     "&")[0] if "type=" in link else NA
-                
+
                 description = await parse_text_content(
-                    page, 
+                    page,
                     "//div[@data-automation='jobAdDetails']/div"
                 )
 
                 company_logo = await parse_company_logo(
-                    page, 
+                    page,
                     "div[data-testid='bx-logo-image'] img"
                 )
-                
+
                 company_industry, company_url, company_url_direct, company_addresses, company_num_emp, company_description = await parse_company_info(
-                    portal, 
-                    site, 
+                    portal,
+                    site,
                     page
                 )
-                
+
                 job_data.append({
                     "id": job_id,
                     "site": site,
@@ -423,7 +428,7 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
                     "job_function": job_function,
                     "listing_type": listing_type,
                     "emails": NA,
-                    "description": description,
+                    # "description": description,
                     "company_industry": company_industry,
                     "company_url": company_url,
                     "company_logo": company_logo,
@@ -431,7 +436,7 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
                     "company_addresses": company_addresses,
                     "company_num_emp": company_num_emp,
                     "company_revenue": NA,
-                    "company_description": company_description,
+                    # "company_description": company_description,
                 })
 
             except Exception as e:
@@ -456,10 +461,10 @@ async def web_scraper(portal="my", site="jobstreet", location="", keyword="Data-
 
         # Save to CSV
         data_frame.to_csv(
-            f"data/{site}_{portal}_{keyword}.csv", 
+            f"data/{site}_{portal}_{keyword}.csv",
             index=False,
-            quotechar='"', 
-            escapechar='\\', 
+            quotechar='"',
+            escapechar='\\',
             encoding='utf-8-sig'
         )
 
