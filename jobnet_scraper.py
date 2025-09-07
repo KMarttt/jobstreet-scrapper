@@ -314,12 +314,13 @@ async def web_scraper(portal="mm", keyword="data+analyst", max_pages=2):
 
         # Initialize data list
         job_data = []
+        error_number = 0
 
         # Extract job details
         print("\nExtracting Job Details")
         for i, link in enumerate(job_links, 1):
             print(f"Processing job {i}/{len(job_links)}")
-
+            print(f"Error Count: {error_number}") 
             try:
 
                 job_id = link.rsplit("/", 1)[1]
