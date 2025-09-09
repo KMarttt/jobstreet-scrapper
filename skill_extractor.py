@@ -14,19 +14,24 @@ skill_extractor = pipeline(
 print("Model loaded successfully!")
 
 
-def extract_skills_from_text(text: str, confidence_threshold: float = 0.5) -> List[Dict]:
+def extract_skills_from_text_chunk(text: str, confidence_threshold: float = 0.7) -> List[Dict]:
     """
-    Extract skills from a single text string
+    Extract skills from a single text chunk (guaranteed to be within token limits)
 
     Args:
-        text: Input text to extract skills from
+        text: Input text chunk to extract skills from
         confidence_threshold: Minimum confidence score to include a skill
 
     Returns:
         List of dictionaries with extracted skills and their confidence scores
     """
     try:
-        # Run the model on the text
+        # Convert to string and clean
+        text = str(text).strip()
+        if not text:
+            return []
+
+        # Run the model on the text chunk
         results = skill_extractor(text)
 
         # Filter by confidence threshold and clean up
@@ -41,6 +46,75 @@ def extract_skills_from_text(text: str, confidence_threshold: float = 0.5) -> Li
                 })
 
         return skills
+    except Exception as e:
+        print(f"Error processing text chunk: {e}")
+        return []
+
+
+def extract_skills_from_text(text: str, confidence_threshold: float = 0.5, max_words: int = 280) -> List[Dict]:
+    """
+    Extract skills from text, splitting into chunks if necessary
+
+    Args:
+        text: Input text to extract skills from
+        confidence_threshold: Minimum confidence score to include a skill
+        max_words: Maximum words per chunk (roughly 512 tokens)
+
+    Returns:
+        List of dictionaries with extracted skills and their confidence scores
+    """
+    try:
+        # Convert to string and clean
+        text = str(text).strip()
+        if not text:
+            return []
+
+        words = text.split()
+
+        # If text is short enough, process as single chunk
+        if len(words) <= max_words:
+            return extract_skills_from_text_chunk(text, confidence_threshold)
+
+        # Split long text into overlapping chunks
+        overlap_words = 50  # Overlap to catch skills that might be split between chunks
+        chunks = []
+
+        for i in range(0, len(words), max_words - overlap_words):
+            chunk_words = words[i:i + max_words]
+            chunk_text = ' '.join(chunk_words)
+            chunks.append(chunk_text)
+
+            # Break if we've covered all words
+            if i + max_words >= len(words):
+                break
+
+        print(
+            f"Processing text in {len(chunks)} chunks (original: {len(words)} words)")
+
+        # Extract skills from all chunks
+        all_skills = []
+        seen_skills = set()  # To avoid duplicates from overlapping chunks
+
+        for chunk_idx, chunk in enumerate(chunks):
+            chunk_skills = extract_skills_from_text_chunk(
+                chunk, confidence_threshold)
+
+            # Add unique skills (avoid duplicates from overlap)
+            for skill in chunk_skills:
+                skill_key = skill['skill'].lower().strip()
+                if skill_key not in seen_skills:
+                    seen_skills.add(skill_key)
+                    # Adjust start/end positions for the full text context
+                    if chunk_idx > 0:
+                        words_before = chunk_idx * (max_words - overlap_words)
+                        char_offset = len(' '.join(words[:words_before])) + 1
+                        skill['start'] += char_offset
+                        skill['end'] += char_offset
+                    all_skills.append(skill)
+
+        print(f"Found {len(all_skills)} unique skills across all chunks")
+        return all_skills
+
     except Exception as e:
         print(f"Error processing text: {e}")
         return []
@@ -115,6 +189,7 @@ def get_top_skills(df: pd.DataFrame, top_n: int = 20) -> pd.DataFrame:
 # Example usage:
 if __name__ == "__main__":
     # Example: Load your dataset (replace with your actual data loading)
+    df = pd.read_csv('data/jobsdb_th__Data-Analyst_final.csv')
 
     # For demonstration with sample data:
     # sample_data = {
@@ -125,7 +200,6 @@ if __name__ == "__main__":
     #     ]
     # }
     # df = pd.DataFrame(sample_data)
-    df = pd.read_csv('data/jobsdb_th__Data-Analyst_final.csv')
 
     # Process the dataset
     results_df = process_dataset(
@@ -134,13 +208,16 @@ if __name__ == "__main__":
     # Display results
     print("\n=== EXTRACTION RESULTS ===")
     for idx, row in results_df.iterrows():
-        print(f"\n--- Job {idx + 1}: {row['title']} at {row['company']} ---")
+        print(
+            f"\n--- Job {idx + 1}: {row.get('title', 'N/A')} at {row.get('company', 'N/A')} ---")
         print(f"Description preview: {str(row['description'])[:150]}...")
         print(
             f"Skills found ({len(row['skills_list'])}): {row['skills_list']}")
         if row['extracted_skills']:
+            confidence_scores = [s['confidence']
+                                 for s in row['extracted_skills']]
             print(
-                f"Top confidence scores: {sorted([s['confidence'] for s in row['extracted_skills']], reverse=True)[:3]}")
+                f"Top confidence scores: {sorted(confidence_scores, reverse=True)[:3]}")
 
     # Get top skills across all jobs
     print("\n=== TOP SKILLS ACROSS ALL JOBS ===")
@@ -149,19 +226,25 @@ if __name__ == "__main__":
 
     # Save results with original data + skills
     output_file = 'job_data_with_extracted_skills.csv'
-    results_df.to_csv(output_file, index=False)
-    print(f"\n=== Results saved to {output_file} ===")
+    try:
+        results_df.to_csv(output_file, index=False)
+        print(f"\n=== Results saved to {output_file} ===")
+    except Exception as e:
+        print(f"Error saving results: {e}")
 
     # Additional analysis for your job data
     print("\n=== ADDITIONAL INSIGHTS ===")
     print(f"Total jobs processed: {len(results_df)}")
-    print(
-        f"Jobs with skills found: {len(results_df[results_df['skill_count'] > 0])}")
-    print(f"Average skills per job: {results_df['skill_count'].mean():.1f}")
-    print(f"Max skills in a single job: {results_df['skill_count'].max()}")
+    jobs_with_skills = len(results_df[results_df['skill_count'] > 0])
+    print(f"Jobs with skills found: {jobs_with_skills}")
+    if len(results_df) > 0:
+        print(
+            f"Average skills per job: {results_df['skill_count'].mean():.1f}")
+        print(f"Max skills in a single job: {results_df['skill_count'].max()}")
 
-    # Show distribution of skill counts
-    skill_distribution = results_df['skill_count'].value_counts().sort_index()
-    print(f"\nSkill count distribution:")
-    for count, frequency in skill_distribution.head(10).items():
-        print(f"  {count} skills: {frequency} jobs")
+        # Show distribution of skill counts
+        skill_distribution = results_df['skill_count'].value_counts(
+        ).sort_index()
+        print(f"\nSkill count distribution:")
+        for count, frequency in skill_distribution.head(10).items():
+            print(f"  {count} skills: {frequency} jobs")
