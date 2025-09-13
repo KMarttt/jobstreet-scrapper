@@ -3,6 +3,18 @@ import pandas as pd
 from deep_translator import GoogleTranslator
 
 def translate_text(translator, max_len, text):
+    """
+    Translate a long piece of text by splitting it into chunks (avoiding splitting
+    a UTF-8 character in half) and translating each chunk separately.
+
+    Args:
+        translator (GoogleTranslator): The translator object to use for translation.
+        max_len (int): The maximum length of a single chunk in bytes.
+        text (str): The text to translate.
+
+    Returns:
+        str: The translated text.
+    """
     # If the text is empty or NaN, return it as is
     if pd.isna(text) or str(text).strip() == "":
         return text
@@ -42,8 +54,11 @@ def translate_text(translator, max_len, text):
             chunk_bytes = text_bytes[start:end] 
             chunk_text = chunk_bytes.decode("utf-8")
         
-        # Translate this chunk and add to results to the list
-        translated_chunks.append(translator.translate(chunk_text))
+        # Translate this chunk and add results to the list
+        result = translator.translate(chunk_text)
+        if result is None:
+            result = chunk_text
+        translated_chunks.append(result)
 
         # Move start to the end of this chunk for the next loop
         start = end
@@ -53,6 +68,23 @@ def translate_text(translator, max_len, text):
 
 
 def translate_csv(input_file):
+    """
+    Translate a CSV file using Google Translate.
+
+    Given a CSV file, translate the columns specified in the translate_cols list
+    and write the translated CSV to a new file with the same name but with "_translated"
+    appended to the filename.
+
+    The translation is done in chunks of up to 4900 characters, to avoid hitting the
+    Google Translate API limit of 5000 characters per request.
+
+    Args:
+        input_file (str): The path to the CSV file to translate.
+
+    Returns:
+        None
+
+    """
     # === READ CSV ===
     df = pd.read_csv(input_file, encoding="utf-8-sig")
 
@@ -126,6 +158,6 @@ if __name__ == "__main__":
 
     # Your csv file
     input_file = input("Enter the name of the CSV file: ") or "vietnamworks_vn_data-analyst.csv" 
-
+    file_path = f"data/{input_file}"
     # Run
-    translate_csv(f"data/{input_file}")
+    translate_csv(file_path)
