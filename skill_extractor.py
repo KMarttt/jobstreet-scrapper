@@ -310,7 +310,7 @@ def get_top_knowledge(df: pd.DataFrame, top_n: int = 20) -> pd.DataFrame:
 if __name__ == "__main__":
     # Load your job dataset
     # Replace with your actual file path
-    csv_file_path = 'data/jobstreet_id__NLP-Engineer_final.csv'
+    csv_file_path = 'data/jobsdb_th__Data-Analyst_final.csv'
     print(f"Loading dataset from {csv_file_path}...")
 
     try:
@@ -338,7 +338,7 @@ if __name__ == "__main__":
 
         # Process the dataset (focusing on description column)
         results_df = process_dataset(
-            df, 'description', confidence_threshold=0.6)
+            df, 'description', confidence_threshold=0.9)
 
     except FileNotFoundError:
         print(f"Error: File {csv_file_path} not found!")
