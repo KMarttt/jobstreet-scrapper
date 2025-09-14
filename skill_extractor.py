@@ -19,7 +19,7 @@ knowledge_extractor = pipeline(
     "token-classification",
     model="jjzha/jobbert_knowledge_extraction",
     tokenizer="jjzha/jobbert_knowledge_extraction",
-    aggregation_strategy="simple"
+    aggregation_strategy="average"
 )
 print("Knowledge extraction model loaded successfully!")
 
@@ -151,9 +151,9 @@ def extract_skills_and_knowledge_from_text(text: str, confidence_threshold: floa
 
         for chunk_idx, chunk in enumerate(chunks):
             chunk_skills = extract_skills_from_text_chunk(
-                chunk, confidence_threshold)
+                chunk, 0.9)
             chunk_knowledge = extract_knowledge_from_text_chunk(
-                chunk, confidence_threshold)
+                chunk, 0.7)
 
             # Add unique skills (avoid duplicates from overlap)
             for skill in chunk_skills:
@@ -310,7 +310,7 @@ def get_top_knowledge(df: pd.DataFrame, top_n: int = 20) -> pd.DataFrame:
 if __name__ == "__main__":
     # Load your job dataset
     # Replace with your actual file path
-    csv_file_path = 'data/jobsdb_th__Data-Analyst_final.csv'
+    csv_file_path = ''
     print(f"Loading dataset from {csv_file_path}...")
 
     try:
@@ -351,7 +351,7 @@ if __name__ == "__main__":
             'company': ['Smooth E Co., Ltd.', 'Eve And Boy Co., Ltd.'],
             'location': ['Sathon, Bangkok', 'Bangkok'],
             'description': [
-                'คุณลักษณะงาน-วิเคราะห์ข้อมูล จัดทำ Data Visualization และ Report-ดูแลระบบที่ใช้เก็บข้อมูลต่าง ๆ เช่น ไฟล์งาน Python Microsoft Excel Microsoft SQL Oracle-ออกแบบและพัฒนาฐานข้อมูลเพื่อใช้ในการสร้าง Model และรายงาน MIS',
+                'Data Visualization Report Python Microsoft Excel Microsoft SQL Oracle- Model MIS-  Phyton ,Excel, Micro SQL, Power BI- DATABASE',
                 'As the Operations Data Analyst (Business Controller), you will be the key analytical partner for the Store Operations team, responsible for developing data models, dashboards, and performance indices. Strong proficiency in Excel, SQL, Power BI (or Tableau), and Google Sheets/Data Studio. Bachelor degree in Data Analytics, Statistics, Business Intelligence, or a related field. 3–5 years of experience in data analysis, preferably in retail, operations, or performance management.'
             ]
         }
