@@ -1,11 +1,13 @@
 import pandas as pd
 from transformers import pipeline
 import json
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import torch
 import shutil
 import os
+import glob
 from datetime import datetime
+from pathlib import Path
 
 # Initialize both extraction pipelines
 print("Loading skill extraction model...")
@@ -25,6 +27,74 @@ knowledge_extractor = pipeline(
     aggregation_strategy="average"
 )
 print("Knowledge extraction model loaded successfully!")
+
+
+def get_csv_files_in_folder(folder_path: str) -> List[str]:
+    """
+    Get all CSV files in the specified folder
+
+    Args:
+        folder_path: Path to the folder containing CSV files
+
+    Returns:
+        List of CSV file paths
+    """
+    folder_path = Path(folder_path)
+    if not folder_path.exists():
+        print(f"Error: Folder {folder_path} does not exist!")
+        return []
+
+    # Get all CSV files in the folder
+    csv_files = list(folder_path.glob("*.csv"))
+
+    if not csv_files:
+        print(f"No CSV files found in {folder_path}")
+        return []
+
+    print(f"Found {len(csv_files)} CSV files in {folder_path}:")
+    for file in csv_files:
+        print(f"  - {file.name}")
+
+    return [str(file) for file in csv_files]
+
+
+def detect_text_column(df: pd.DataFrame) -> str:
+    """
+    Automatically detect the main text column to analyze
+
+    Args:
+        df: Input DataFrame
+
+    Returns:
+        Name of the text column to analyze
+    """
+    # Common column names for job descriptions
+    text_columns = ['description', 'job_description',
+                    'desc', 'content', 'text', 'details']
+
+    # Check if any of the common names exist
+    for col in text_columns:
+        if col in df.columns:
+            print(f"Found text column: '{col}'")
+            return col
+
+    # If no common names found, look for columns with long text content
+    for col in df.columns:
+        if df[col].dtype == 'object':  # String columns
+            # Check average text length
+            avg_length = df[col].astype(str).str.len().mean()
+            if avg_length > 100:  # Assume descriptions are longer than 100 chars
+                print(
+                    f"Auto-detected text column: '{col}' (avg length: {avg_length:.0f})")
+                return col
+
+    print("Warning: Could not automatically detect text column. Using first string column.")
+    # Return first string column as fallback
+    for col in df.columns:
+        if df[col].dtype == 'object':
+            return col
+
+    raise ValueError("No suitable text column found in the dataset!")
 
 
 def copy_original_file(input_file_path: str, output_dir: str = "processed_files") -> str:
@@ -251,11 +321,6 @@ def process_dataset(df: pd.DataFrame, text_column: str, confidence_threshold: fl
     combined_counts = []
     combined_text = []
 
-    # Store detailed extraction data as JSON strings for complete preservation
-    skills_detailed = []
-    knowledge_detailed = []
-    combined_detailed = []
-
     for idx, row in df.iterrows():
         if idx % 10 == 0:  # Progress indicator
             print(f"Processing row {idx}/{len(df)}")
@@ -317,13 +382,13 @@ def save_results_with_backups(df: pd.DataFrame, input_file_path: str, output_dir
 
         saved_files = {}
 
-        # 1. Copy original file
-        if os.path.exists(input_file_path):
-            original_copy = os.path.join(
-                output_dir, f"{base_name}_original_{timestamp}.csv")
-            shutil.copy2(input_file_path, original_copy)
-            saved_files['original_copy'] = original_copy
-            print(f"✓ Original file backed up: {original_copy}")
+        # # 1. Copy original file
+        # if os.path.exists(input_file_path):
+        #     original_copy = os.path.join(
+        #         output_dir, f"{base_name}_original_{timestamp}.csv")
+        #     shutil.copy2(input_file_path, original_copy)
+        #     saved_files['original_copy'] = original_copy
+        #     print(f"✓ Original file backed up: {original_copy}")
 
         # 2. Save complete results (all columns)
         complete_results = os.path.join(
@@ -332,30 +397,36 @@ def save_results_with_backups(df: pd.DataFrame, input_file_path: str, output_dir
         saved_files['complete_results'] = complete_results
         print(f"✓ Complete results saved: {complete_results}")
 
-        # 3. Save skills-focused dataset
-        skills_columns = ['id', 'title', 'company', 'location', 'description',
-                          'skill_count', 'skills_list', 'skills_detailed_json']
-        # Check if basic columns exist
-        if all(col in df.columns for col in skills_columns[:5]):
-            skills_df = df[skills_columns].copy()
-            skills_results = os.path.join(
-                output_dir, f"{base_name}_skills_focused_{timestamp}.csv")
-            skills_df.to_csv(skills_results, index=False, encoding='utf-8')
-            saved_files['skills_focused'] = skills_results
-            print(f"✓ Skills-focused dataset saved: {skills_results}")
+        # # 3. Save skills-focused dataset
+        # basic_columns = [col for col in ['id', 'title', 'company',
+        #                                  'location', 'description'] if col in df.columns]
+        # skills_columns = basic_columns + \
+        #     ['skill_count', 'skills_list', 'extracted_skills']
+        # available_skills_columns = [
+        #     col for col in skills_columns if col in df.columns]
 
-        # 4. Save knowledge-focused dataset
-        knowledge_columns = ['id', 'title', 'company', 'location', 'description',
-                             'knowledge_count', 'knowledge_list', 'knowledge_detailed_json']
-        # Check if basic columns exist
-        if all(col in df.columns for col in knowledge_columns[:5]):
-            knowledge_df = df[knowledge_columns].copy()
-            knowledge_results = os.path.join(
-                output_dir, f"{base_name}_knowledge_focused_{timestamp}.csv")
-            knowledge_df.to_csv(knowledge_results,
-                                index=False, encoding='utf-8')
-            saved_files['knowledge_focused'] = knowledge_results
-            print(f"✓ Knowledge-focused dataset saved: {knowledge_results}")
+        # if len(available_skills_columns) > 1:
+        #     skills_df = df[available_skills_columns].copy()
+        #     skills_results = os.path.join(
+        #         output_dir, f"{base_name}_skills_focused_{timestamp}.csv")
+        #     skills_df.to_csv(skills_results, index=False, encoding='utf-8')
+        #     saved_files['skills_focused'] = skills_results
+        #     print(f"✓ Skills-focused dataset saved: {skills_results}")
+
+        # # 4. Save knowledge-focused dataset
+        # knowledge_columns = basic_columns + \
+        #     ['knowledge_count', 'knowledge_list', 'extracted_knowledge']
+        # available_knowledge_columns = [
+        #     col for col in knowledge_columns if col in df.columns]
+
+        # if len(available_knowledge_columns) > 1:
+        #     knowledge_df = df[available_knowledge_columns].copy()
+        #     knowledge_results = os.path.join(
+        #         output_dir, f"{base_name}_knowledge_focused_{timestamp}.csv")
+        #     knowledge_df.to_csv(knowledge_results,
+        #                         index=False, encoding='utf-8')
+        #     saved_files['knowledge_focused'] = knowledge_results
+        #     print(f"✓ Knowledge-focused dataset saved: {knowledge_results}")
 
         # 5. Save summary statistics
         summary_stats = {
@@ -376,22 +447,22 @@ def save_results_with_backups(df: pd.DataFrame, input_file_path: str, output_dir
         saved_files['summary'] = summary_file
         print(f"✓ Processing summary saved: {summary_file}")
 
-        # 6. Save top skills and knowledge as separate files
-        if 'skills_list' in df.columns:
-            top_skills = get_top_skills(df, top_n=50)
-            top_skills_file = os.path.join(
-                output_dir, f"{base_name}_top_skills_{timestamp}.csv")
-            top_skills.to_csv(top_skills_file, index=False)
-            saved_files['top_skills'] = top_skills_file
-            print(f"✓ Top skills saved: {top_skills_file}")
+        # # 6. Save top skills and knowledge as separate files
+        # if 'skills_list' in df.columns:
+        #     top_skills = get_top_skills(df, top_n=50)
+        #     top_skills_file = os.path.join(
+        #         output_dir, f"{base_name}_top_skills_{timestamp}.csv")
+        #     top_skills.to_csv(top_skills_file, index=False)
+        #     saved_files['top_skills'] = top_skills_file
+        #     print(f"✓ Top skills saved: {top_skills_file}")
 
-        if 'knowledge_list' in df.columns:
-            top_knowledge = get_top_knowledge(df, top_n=50)
-            top_knowledge_file = os.path.join(
-                output_dir, f"{base_name}_top_knowledge_{timestamp}.csv")
-            top_knowledge.to_csv(top_knowledge_file, index=False)
-            saved_files['top_knowledge'] = top_knowledge_file
-            print(f"✓ Top knowledge saved: {top_knowledge_file}")
+        # if 'knowledge_list' in df.columns:
+        #     top_knowledge = get_top_knowledge(df, top_n=50)
+        #     top_knowledge_file = os.path.join(
+        #         output_dir, f"{base_name}_top_knowledge_{timestamp}.csv")
+        #     top_knowledge.to_csv(top_knowledge_file, index=False)
+        #     saved_files['top_knowledge'] = top_knowledge_file
+        #     print(f"✓ Top knowledge saved: {top_knowledge_file}")
 
         print(f"\n✓ All files saved to directory: {output_dir}")
         return saved_files
@@ -454,128 +525,246 @@ def get_top_knowledge(df: pd.DataFrame, top_n: int = 20) -> pd.DataFrame:
     return freq_df
 
 
-# Example usage:
-if __name__ == "__main__":
-    # Load your job dataset
-    # Replace with your actual file path
-    csv_file_path = 'data/jobsdb_th__AI-Engineer.csv'
-    output_directory = "processed_job_data"  # Directory for all outputs
+def process_single_file(file_path: str, output_directory: str, confidence_threshold: float = 0.7) -> Tuple[bool, Dict]:
+    """
+    Process a single CSV file
 
-    print(f"Loading dataset from {csv_file_path}...")
+    Args:
+        file_path: Path to the CSV file
+        output_directory: Directory to save results
+        confidence_threshold: Confidence threshold for extraction
 
+    Returns:
+        Tuple of (success, results_summary)
+    """
     try:
-        df = pd.read_csv(csv_file_path)
+        print(f"\n{'='*60}")
+        print(f"Processing file: {os.path.basename(file_path)}")
+        print(f"{'='*60}")
+
+        # Load dataset
+        df = pd.read_csv(file_path)
         print(f"Dataset loaded successfully! Shape: {df.shape}")
         print(f"Columns: {list(df.columns)}")
 
-        # Check if description column exists
-        if 'description' not in df.columns:
-            print("Error: 'description' column not found in dataset!")
-            print("Available columns:", list(df.columns))
-            exit(1)
+        # Auto-detect text column
+        text_column = detect_text_column(df)
 
         # Remove rows with empty descriptions
         initial_count = len(df)
-        df = df.dropna(subset=['description'])
-        df = df[df['description'].str.strip() != '']
+        df = df.dropna(subset=[text_column])
+        df = df[df[text_column].astype(str).str.strip() != '']
         final_count = len(df)
 
         if final_count == 0:
-            print("Error: No valid descriptions found in dataset!")
-            exit(1)
+            print(f"Error: No valid {text_column} found in {file_path}!")
+            return False, {'error': 'No valid text content'}
 
         print(
-            f"Removed {initial_count - final_count} rows with empty descriptions")
-        print(f"Processing {final_count} job descriptions...")
+            f"Removed {initial_count - final_count} rows with empty {text_column}")
+        print(f"Processing {final_count} records...")
 
-        # Process the dataset (focusing on description column)
-        results_df = process_dataset(
-            df, 'description', confidence_threshold=0.7)
+        # Process the dataset
+        results_df = process_dataset(df, text_column, confidence_threshold)
 
-        # Save all results with backups and multiple formats
+        # Create file-specific output directory
+        file_output_dir = os.path.join(
+            output_directory, f"processed_{os.path.splitext(os.path.basename(file_path))[0]}")
+
+        # Save results
         saved_files = save_results_with_backups(
-            results_df, csv_file_path, output_directory)
+            results_df, file_path, file_output_dir)
 
-    except FileNotFoundError:
-        print(f"Error: File {csv_file_path} not found!")
-        print("Creating sample with your data format for demonstration...")
+        # Generate summary
+        summary = {
+            'file_name': os.path.basename(file_path),
+            'total_records': len(results_df),
+            'records_with_skills': len(results_df[results_df['skill_count'] > 0]),
+            'records_with_knowledge': len(results_df[results_df['knowledge_count'] > 0]),
+            'avg_skills_per_record': results_df['skill_count'].mean(),
+            'avg_knowledge_per_record': results_df['knowledge_count'].mean(),
+            'max_skills': results_df['skill_count'].max(),
+            'max_knowledge': results_df['knowledge_count'].max(),
+            'saved_files': saved_files,
+            'output_directory': file_output_dir
+        }
 
-        # Using your actual sample data format
-        sample_data = {
-            'id': [86357160, 86313613],
-            'title': ['Data Analyst', 'Operations Data Analyst,Manager (Business Controller)'],
-            'company': ['Smooth E Co., Ltd.', 'Eve And Boy Co., Ltd.'],
-            'location': ['Sathon, Bangkok', 'Bangkok'],
+        print(f"\n✓ Successfully processed {os.path.basename(file_path)}")
+        print(f"  - Records processed: {summary['total_records']}")
+        print(f"  - Records with skills: {summary['records_with_skills']}")
+        print(
+            f"  - Records with knowledge: {summary['records_with_knowledge']}")
+        print(
+            f"  - Average skills per record: {summary['avg_skills_per_record']:.1f}")
+        print(
+            f"  - Average knowledge per record: {summary['avg_knowledge_per_record']:.1f}")
+
+        return True, summary
+
+    except Exception as e:
+        print(f"Error processing {file_path}: {e}")
+        return False, {'error': str(e)}
+
+
+def process_all_files_in_folder(folder_path: str, output_directory: str = "batch_processed_files", confidence_threshold: float = 0.7) -> Dict:
+    """
+    Process all CSV files in a given folder
+
+    Args:
+        folder_path: Path to folder containing CSV files
+        output_directory: Directory to save all results
+        confidence_threshold: Confidence threshold for extraction
+
+    Returns:
+        Dictionary with processing results for all files
+    """
+    print(f"\n{'='*80}")
+    print(f"BATCH PROCESSING: Processing all CSV files in {folder_path}")
+    print(f"{'='*80}")
+
+    # Get all CSV files
+    csv_files = get_csv_files_in_folder(folder_path)
+
+    if not csv_files:
+        return {'error': 'No CSV files found'}
+
+    # Create main output directory
+    os.makedirs(output_directory, exist_ok=True)
+
+    # Track processing results
+    batch_results = {
+        'start_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'total_files': len(csv_files),
+        'successful_files': 0,
+        'failed_files': 0,
+        'file_results': {},
+        'batch_summary': {},
+        'output_directory': output_directory
+    }
+
+    # Process each file
+    for i, file_path in enumerate(csv_files, 1):
+        print(f"\n[{i}/{len(csv_files)}] Processing: {os.path.basename(file_path)}")
+
+        success, result = process_single_file(
+            file_path, output_directory, confidence_threshold)
+
+        batch_results['file_results'][os.path.basename(file_path)] = result
+
+        if success:
+            batch_results['successful_files'] += 1
+        else:
+            batch_results['failed_files'] += 1
+
+    # Generate batch summary
+    batch_results['end_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Aggregate statistics across all successful files
+    successful_results = [
+        r for r in batch_results['file_results'].values() if 'error' not in r]
+
+    if successful_results:
+        batch_results['batch_summary'] = {
+            'total_records_across_all_files': sum(r['total_records'] for r in successful_results),
+            'total_records_with_skills': sum(r['records_with_skills'] for r in successful_results),
+            'total_records_with_knowledge': sum(r['records_with_knowledge'] for r in successful_results),
+            'average_skills_per_record_overall': sum(r['avg_skills_per_record'] * r['total_records'] for r in successful_results) / sum(r['total_records'] for r in successful_results),
+            'average_knowledge_per_record_overall': sum(r['avg_knowledge_per_record'] * r['total_records'] for r in successful_results) / sum(r['total_records'] for r in successful_results),
+            'highest_skills_in_single_record': max(r['max_skills'] for r in successful_results),
+            'highest_knowledge_in_single_record': max(r['max_knowledge'] for r in successful_results)
+        }
+
+    # Save batch processing summary
+    summary_file = os.path.join(
+        output_directory, f"batch_processing_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+    with open(summary_file, 'w', encoding='utf-8') as f:
+        json.dump(batch_results, f, indent=2, ensure_ascii=False, default=str)
+
+    print(f"\n{'='*80}")
+    print(f"BATCH PROCESSING COMPLETE")
+    print(f"{'='*80}")
+    print(f"Total files: {batch_results['total_files']}")
+    print(f"Successful: {batch_results['successful_files']}")
+    print(f"Failed: {batch_results['failed_files']}")
+
+    if successful_results:
+        print(f"\nOverall Statistics:")
+        print(
+            f"Total records processed: {batch_results['batch_summary']['total_records_across_all_files']}")
+        print(
+            f"Records with skills: {batch_results['batch_summary']['total_records_with_skills']}")
+        print(
+            f"Records with knowledge: {batch_results['batch_summary']['total_records_with_knowledge']}")
+        print(
+            f"Average skills per record: {batch_results['batch_summary']['average_skills_per_record_overall']:.1f}")
+        print(
+            f"Average knowledge per record: {batch_results['batch_summary']['average_knowledge_per_record_overall']:.1f}")
+
+    print(f"\nBatch summary saved to: {summary_file}")
+    print(f"All results saved in: {output_directory}")
+
+    return batch_results
+
+
+# Example usage and main execution
+if __name__ == "__main__":
+    # Configuration
+    INPUT_FOLDER = "dataset"  # Change this to your folder containing CSV files
+    OUTPUT_FOLDER = "processed_job_data"
+    CONFIDENCE_THRESHOLD = 0.7
+
+    print("=== BATCH SKILL & KNOWLEDGE EXTRACTOR ===")
+    print(f"Input folder: {INPUT_FOLDER}")
+    print(f"Output folder: {OUTPUT_FOLDER}")
+    print(f"Confidence threshold: {CONFIDENCE_THRESHOLD}")
+
+    # Check if input folder exists
+    if not os.path.exists(INPUT_FOLDER):
+        print(f"\nError: Input folder '{INPUT_FOLDER}' does not exist!")
+        print("Creating sample folder with demo data...")
+
+        # Create sample data for demonstration
+        os.makedirs(INPUT_FOLDER, exist_ok=True)
+
+        # Sample data 1
+        sample_data_1 = {
+            'id': [1, 2, 3],
+            'title': ['Data Scientist', 'Machine Learning Engineer', 'AI Researcher'],
+            'company': ['Tech Corp', 'AI Startup', 'Research Lab'],
             'description': [
-                'Data Visualization Report Python Microsoft Excel Microsoft SQL Oracle- Model MIS-  Phyton ,Excel, Micro SQL, Power BI- DATABASE',
-                'As the Operations Data Analyst (Business Controller), you will be the key analytical partner for the Store Operations team, responsible for developing data models, dashboards, and performance indices. Strong proficiency in Excel, SQL, Power BI (or Tableau), and Google Sheets/Data Studio. Bachelor degree in Data Analytics, Statistics, Business Intelligence, or a related field. 3â€"5 years of experience in data analysis, preferably in retail, operations, or performance management.'
+                'Python programming, machine learning, pandas, scikit-learn, deep learning, TensorFlow',
+                'Python, PyTorch, computer vision, natural language processing, AWS, Docker',
+                'Research experience, Python, R, statistical analysis, machine learning algorithms'
             ]
         }
-        df = pd.DataFrame(sample_data)
-        results_df = process_dataset(
-            df, 'description', confidence_threshold=0.6)
 
-        # Save sample results
-        saved_files = save_results_with_backups(
-            results_df, "sample_data.csv", output_directory)
+        # Sample data 2
+        sample_data_2 = {
+            'id': [4, 5, 6],
+            'title': ['Software Engineer', 'DevOps Engineer', 'Data Analyst'],
+            'company': ['StartupXYZ', 'CloudCorp', 'Analytics Inc'],
+            'description': [
+                'Java, Spring framework, microservices, REST APIs, database design, MySQL',
+                'Kubernetes, Docker, CI/CD, Jenkins, AWS, monitoring, Terraform',
+                'SQL, Excel, Power BI, data visualization, statistical analysis, reporting'
+            ]
+        }
 
-    # Display results
-    print("\n=== EXTRACTION RESULTS ===")
-    for idx, row in results_df.iterrows():
-        print(
-            f"\n--- Job {idx + 1}: {row.get('title', 'N/A')} at {row.get('company', 'N/A')} ---")
-        print(f"Description preview: {str(row['description'])[:150]}...")
-        print(
-            f"Skills found ({len(row['skills_list'])}): {row['skills_list']}")
-        print(
-            f"Knowledge found ({len(row['knowledge_list'])}): {row['knowledge_list']}")
+        # Save sample files
+        pd.DataFrame(sample_data_1).to_csv(os.path.join(
+            INPUT_FOLDER, "ai_jobs.csv"), index=False)
+        pd.DataFrame(sample_data_2).to_csv(os.path.join(
+            INPUT_FOLDER, "tech_jobs.csv"), index=False)
 
-    # Get top skills and knowledge across all jobs
-    print("\n=== TOP SKILLS ACROSS ALL JOBS ===")
-    top_skills = get_top_skills(results_df, top_n=15)
-    print(top_skills)
+        print(f"Created sample files in {INPUT_FOLDER}/")
 
-    print("\n=== TOP KNOWLEDGE ACROSS ALL JOBS ===")
-    top_knowledge = get_top_knowledge(results_df, top_n=15)
-    print(top_knowledge)
+    # Process all files in the folder
+    results = process_all_files_in_folder(
+        folder_path=INPUT_FOLDER,
+        output_directory=OUTPUT_FOLDER,
+        confidence_threshold=CONFIDENCE_THRESHOLD
+    )
 
-    # Additional analysis for your job data
-    print("\n=== ADDITIONAL INSIGHTS ===")
-    print(f"Total jobs processed: {len(results_df)}")
-    jobs_with_skills = len(results_df[results_df['skill_count'] > 0])
-    jobs_with_knowledge = len(results_df[results_df['knowledge_count'] > 0])
-    jobs_with_both = len(results_df[(results_df['skill_count'] > 0) &
-                                    (results_df['knowledge_count'] > 0)])
-
-    print(f"Jobs with skills found: {jobs_with_skills}")
-    print(f"Jobs with knowledge found: {jobs_with_knowledge}")
-    print(f"Jobs with both skills and knowledge: {jobs_with_both}")
-
-    if len(results_df) > 0:
-        print(
-            f"Average skills per job: {results_df['skill_count'].mean():.1f}")
-        print(
-            f"Average knowledge items per job: {results_df['knowledge_count'].mean():.1f}")
-        print(
-            f"Average total items per job: {results_df['total_items_count'].mean():.1f}")
-        print(f"Max skills in a single job: {results_df['skill_count'].max()}")
-        print(
-            f"Max knowledge items in a single job: {results_df['knowledge_count'].max()}")
-
-        # Show distribution of skill and knowledge counts
-        print(f"\nSkill count distribution:")
-        skill_distribution = results_df['skill_count'].value_counts(
-        ).sort_index()
-        for count, frequency in skill_distribution.head(8).items():
-            print(f"  {count} skills: {frequency} jobs")
-
-        print(f"\nKnowledge count distribution:")
-        knowledge_distribution = results_df['knowledge_count'].value_counts(
-        ).sort_index()
-        for count, frequency in knowledge_distribution.head(8).items():
-            print(f"  {count} knowledge items: {frequency} jobs")
-
-    # Print summary of saved files
-    print("\n=== FILES CREATED ===")
-    for file_type, file_path in saved_files.items():
-        print(f"{file_type}: {file_path}")
+    print("\n" + "="*80)
+    print("PROCESSING COMPLETED!")
+    print("="*80)
