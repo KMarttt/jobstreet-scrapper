@@ -2,7 +2,7 @@ import pandas as pd
 import ast
 import os
 import glob
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 
@@ -57,21 +57,23 @@ def extract_site_country_from_folder(folder_path):
 
 def extract_skills_and_knowledge(csv_file_path):
     """
-    Extract skills and knowledge from CSV file and compile into one big list.
+    Extract skills and knowledge from CSV file, keeping them separate.
 
     Args:
         csv_file_path (str): Path to the CSV file
 
     Returns:
-        tuple: (unique_items, frequency_count, total_rows_processed)
+        tuple: (skills_data, knowledge_data, total_rows_processed)
+        where skills_data and knowledge_data are dicts with 'unique' and 'frequency' keys
     """
 
     try:
         # Read the CSV file
         df = pd.read_csv(csv_file_path)
 
-        # Initialize list to store all skills and knowledge
-        all_items = []
+        # Initialize lists to store skills and knowledge separately
+        all_skills = []
+        all_knowledge = []
         rows_processed = 0
 
         # Process each row
@@ -84,7 +86,7 @@ def extract_skills_and_knowledge(csv_file_path):
                     # Convert string representation of list to actual list
                     skills = ast.literal_eval(row['skills_list'])
                     if isinstance(skills, list):
-                        all_items.extend(skills)
+                        all_skills.extend(skills)
                         row_has_data = True
                 except (ValueError, SyntaxError) as e:
                     print(
@@ -96,7 +98,7 @@ def extract_skills_and_knowledge(csv_file_path):
                     # Convert string representation of list to actual list
                     knowledge = ast.literal_eval(row['knowledge_list'])
                     if isinstance(knowledge, list):
-                        all_items.extend(knowledge)
+                        all_knowledge.extend(knowledge)
                         row_has_data = True
                 except (ValueError, SyntaxError) as e:
                     print(
@@ -105,42 +107,63 @@ def extract_skills_and_knowledge(csv_file_path):
             if row_has_data:
                 rows_processed += 1
 
-        # Remove duplicates while preserving order
-        unique_items = list(dict.fromkeys(all_items))
+        # Process skills data
+        unique_skills = list(dict.fromkeys(all_skills))
+        skills_frequency = Counter(all_skills)
+        skills_data = {
+            'unique': unique_skills,
+            'frequency': skills_frequency
+        }
 
-        # Create frequency counter
-        item_frequency = Counter(all_items)
+        # Process knowledge data
+        unique_knowledge = list(dict.fromkeys(all_knowledge))
+        knowledge_frequency = Counter(all_knowledge)
+        knowledge_data = {
+            'unique': unique_knowledge,
+            'frequency': knowledge_frequency
+        }
 
-        return unique_items, item_frequency, rows_processed
+        return skills_data, knowledge_data, rows_processed
 
     except Exception as e:
         print(f"Error processing file {csv_file_path}: {e}")
-        return [], Counter(), 0
+        return {'unique': [], 'frequency': Counter()}, {'unique': [], 'frequency': Counter()}, 0
 
 
-def save_results_to_csv(unique_items, frequency_count, output_filename, source_info):
+def save_results_to_csv(skills_data, knowledge_data, output_filename, source_info):
     """
-    Save results to CSV file with skills/knowledge and their frequencies.
+    Save results to CSV file with separate columns for skills and knowledge.
 
     Args:
-        unique_items (list): List of unique skills and knowledge
-        frequency_count (Counter): Counter object with frequencies
+        skills_data (dict): Dictionary with skills unique list and frequency counter
+        knowledge_data (dict): Dictionary with knowledge unique list and frequency counter
         output_filename (str): Output CSV filename
         source_info (dict): Information about source files processed
     """
-    # Create DataFrame with skills/knowledge and frequencies
+    # Create DataFrame with separate columns for skills and knowledge
     results_data = []
-    for item in unique_items:
+
+    # Add skills
+    for item in skills_data['unique']:
         results_data.append({
-            'skill_knowledge': item,
-            'frequency': frequency_count[item],
-            'type': 'skill/knowledge'
+            'item': item,
+            'frequency': skills_data['frequency'][item],
+            'type': 'skill'
+        })
+
+    # Add knowledge
+    for item in knowledge_data['unique']:
+        results_data.append({
+            'item': item,
+            'frequency': knowledge_data['frequency'][item],
+            'type': 'knowledge'
         })
 
     df_results = pd.DataFrame(results_data)
 
-    # Sort by frequency (descending)
-    df_results = df_results.sort_values('frequency', ascending=False)
+    # Sort by type first, then by frequency (descending)
+    df_results = df_results.sort_values(
+        ['type', 'frequency'], ascending=[True, False])
 
     # Save to CSV
     df_results.to_csv(output_filename, index=False, encoding='utf-8')
@@ -151,16 +174,23 @@ def save_results_to_csv(unique_items, frequency_count, output_filename, source_i
         f.write("=== PROCESSING SUMMARY ===\n")
         f.write(f"Total files processed: {source_info['files_processed']}\n")
         f.write(f"Total rows with data: {source_info['total_rows']}\n")
-        f.write(f"Total unique skills/knowledge: {len(unique_items)}\n")
+        f.write(f"Total unique skills: {len(skills_data['unique'])}\n")
+        f.write(f"Total unique knowledge: {len(knowledge_data['unique'])}\n")
         f.write(
-            f"Total items (with duplicates): {sum(frequency_count.values())}\n\n")
+            f"Total skills (with duplicates): {sum(skills_data['frequency'].values())}\n")
+        f.write(
+            f"Total knowledge (with duplicates): {sum(knowledge_data['frequency'].values())}\n\n")
 
         f.write("=== SOURCE FILES ===\n")
         for file_path in source_info['source_files']:
             f.write(f"{file_path}\n")
 
-        f.write(f"\n=== TOP 20 MOST FREQUENT ITEMS ===\n")
-        for item, count in frequency_count.most_common(20):
+        f.write(f"\n=== TOP 10 MOST FREQUENT SKILLS ===\n")
+        for item, count in skills_data['frequency'].most_common(10):
+            f.write(f"{item}: {count}\n")
+
+        f.write(f"\n=== TOP 10 MOST FREQUENT KNOWLEDGE ===\n")
+        for item, count in knowledge_data['frequency'].most_common(10):
             f.write(f"{item}: {count}\n")
 
 
@@ -202,6 +232,32 @@ def find_csv_files(base_directory):
     return csv_files
 
 
+def combine_data_dictionaries(data_list):
+    """
+    Combine multiple data dictionaries (skills or knowledge).
+
+    Args:
+        data_list (list): List of data dictionaries with 'unique' and 'frequency' keys
+
+    Returns:
+        dict: Combined data dictionary
+    """
+    all_items = []
+    combined_frequency = Counter()
+
+    for data in data_list:
+        all_items.extend(data['unique'])
+        combined_frequency.update(data['frequency'])
+
+    # Remove duplicates while preserving order
+    unique_items = list(dict.fromkeys(all_items))
+
+    return {
+        'unique': unique_items,
+        'frequency': combined_frequency
+    }
+
+
 def process_batch():
     """
     Process all CSV files in batch mode.
@@ -241,29 +297,30 @@ def process_batch():
         print(f"Files to process: {len(file_list)}")
 
         # Combine data from all files for this site_country
-        all_unique_items = []
-        combined_frequency = Counter()
+        skills_data_list = []
+        knowledge_data_list = []
         total_rows = 0
         files_processed = 0
 
         for csv_file in file_list:
             print(f"Processing: {os.path.basename(csv_file)}")
-            unique_items, frequency_count, rows_processed = extract_skills_and_knowledge(
+            skills_data, knowledge_data, rows_processed = extract_skills_and_knowledge(
                 csv_file)
 
-            if unique_items:
-                all_unique_items.extend(unique_items)
-                combined_frequency.update(frequency_count)
+            if skills_data['unique'] or knowledge_data['unique']:
+                skills_data_list.append(skills_data)
+                knowledge_data_list.append(knowledge_data)
                 total_rows += rows_processed
                 files_processed += 1
                 print(
-                    f"  - Found {len(unique_items)} unique items, {rows_processed} rows processed")
+                    f"  - Found {len(skills_data['unique'])} unique skills, {len(knowledge_data['unique'])} unique knowledge, {rows_processed} rows processed")
             else:
                 print(f"  - No data extracted from this file")
 
-        if all_unique_items:
-            # Remove duplicates from combined list
-            final_unique_items = list(dict.fromkeys(all_unique_items))
+        if skills_data_list or knowledge_data_list:
+            # Combine all data
+            combined_skills = combine_data_dictionaries(skills_data_list)
+            combined_knowledge = combine_data_dictionaries(knowledge_data_list)
 
             # Create output filename
             output_filename = f"{site_country}_skills.csv"
@@ -277,13 +334,16 @@ def process_batch():
 
             # Save results
             save_results_to_csv(
-                final_unique_items, combined_frequency, output_filename, source_info)
+                combined_skills, combined_knowledge, output_filename, source_info)
 
             print(f"Results for {site_country}:")
+            print(f"  - Total unique skills: {len(combined_skills['unique'])}")
             print(
-                f"  - Total unique skills/knowledge: {len(final_unique_items)}")
+                f"  - Total unique knowledge: {len(combined_knowledge['unique'])}")
             print(
-                f"  - Total items (with duplicates): {sum(combined_frequency.values())}")
+                f"  - Total skills (with duplicates): {sum(combined_skills['frequency'].values())}")
+            print(
+                f"  - Total knowledge (with duplicates): {sum(combined_knowledge['frequency'].values())}")
             print(f"  - Files processed: {files_processed}")
             print(f"  - Output saved as: {output_filename}")
         else:
@@ -320,22 +380,28 @@ def process_single_file():
             output_filename = "extracted_skills.csv"
 
         # Extract skills and knowledge
-        unique_items, frequency_count, rows_processed = extract_skills_and_knowledge(
+        skills_data, knowledge_data, rows_processed = extract_skills_and_knowledge(
             csv_file_path)
 
-        if not unique_items:
+        if not skills_data['unique'] and not knowledge_data['unique']:
             print("No skills or knowledge data found in the file.")
             return
 
         print("=== EXTRACTION RESULTS ===")
+        print(f"Total unique skills found: {len(skills_data['unique'])}")
+        print(f"Total unique knowledge found: {len(knowledge_data['unique'])}")
         print(
-            f"Total unique skills and knowledge items found: {len(unique_items)}")
+            f"Total skills (including duplicates): {sum(skills_data['frequency'].values())}")
         print(
-            f"Total items (including duplicates): {sum(frequency_count.values())}")
+            f"Total knowledge (including duplicates): {sum(knowledge_data['frequency'].values())}")
         print(f"Rows processed: {rows_processed}")
 
-        print("\n=== TOP 10 MOST FREQUENT ITEMS ===")
-        for item, count in frequency_count.most_common(10):
+        print("\n=== TOP 5 MOST FREQUENT SKILLS ===")
+        for item, count in skills_data['frequency'].most_common(5):
+            print(f"{item} ({count} times)")
+
+        print("\n=== TOP 5 MOST FREQUENT KNOWLEDGE ===")
+        for item, count in knowledge_data['frequency'].most_common(5):
             print(f"{item} ({count} times)")
 
         # Save results to CSV file
@@ -344,15 +410,19 @@ def process_single_file():
             'total_rows': rows_processed,
             'source_files': [csv_file_path]
         }
-        save_results_to_csv(unique_items, frequency_count,
+        save_results_to_csv(skills_data, knowledge_data,
                             output_filename, source_info)
 
         # Optionally display all items
         show_all = input(
             "\nDo you want to display all unique items in the console? (y/n): ").lower().strip()
         if show_all == 'y':
-            print("\n=== ALL UNIQUE SKILLS AND KNOWLEDGE ===")
-            for i, item in enumerate(unique_items, 1):
+            print("\n=== ALL UNIQUE SKILLS ===")
+            for i, item in enumerate(skills_data['unique'], 1):
+                print(f"{i:3d}. {item}")
+
+            print("\n=== ALL UNIQUE KNOWLEDGE ===")
+            for i, item in enumerate(knowledge_data['unique'], 1):
                 print(f"{i:3d}. {item}")
 
     except Exception as e:
