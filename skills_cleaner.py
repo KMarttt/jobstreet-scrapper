@@ -10,7 +10,6 @@ def clean_skills_data(input_file, output_file):
     # Load the data
     print("Loading data...")
     df = pd.read_csv(input_file)
-    print(f"Original data shape: {df.shape}")
 
     # Step 1: Remove entries with only punctuation or symbols
     print("Step 1: Removing pure punctuation/symbols...")
@@ -24,7 +23,6 @@ def clean_skills_data(input_file, output_file):
     mask = df['item'].str.contains(
         '|'.join(punctuation_patterns), regex=True, na=True)
     df = df[~mask]
-    print(f"After removing punctuation: {df.shape}")
 
     # Step 2: Remove common non-skill words
     print("Step 2: Removing common non-skill words...")
@@ -54,7 +52,6 @@ def clean_skills_data(input_file, output_file):
 
     # Remove common words but preserve them if they appear as legitimate technical skills
     df = df[~df['item'].str.lower().isin(non_skills)]
-    print(f"After removing common words: {df.shape}")
 
     # Step 3: Remove very short entries that are likely noise (but preserve known technical acronyms)
     print("Step 3: Handling short entries...")
@@ -95,7 +92,6 @@ def clean_skills_data(input_file, output_file):
     )
 
     df = df[keep_mask]
-    print(f"After filtering short entries: {df.shape}")
 
     # Step 4: Remove entries that are fragments or incomplete words
     print("Step 4: Removing word fragments...")
@@ -216,35 +212,9 @@ def clean_skills_data(input_file, output_file):
     df = pd.DataFrame(consolidated_rows)
     df = df.drop('item_lower', axis=1)  # Remove helper column
 
-    print(
-        f"Consolidated {len(consolidation_stats)} sets of case-insensitive duplicates")
-
-    # Show some examples of consolidation
-    if consolidation_stats:
-        print(f"\nExamples of case consolidation:")
-        # Show first 10 examples
-        for i, stat in enumerate(consolidation_stats[:10]):
-            original_str = ", ".join([f"'{item}' ({freq})" for item, freq in zip(
-                stat['original_items'], stat['original_frequencies'])])
-            print(
-                f"{i+1:2d}. {original_str} → '{stat['consolidated_to']}' ({stat['total_frequency']})")
-
-        if len(consolidation_stats) > 10:
-            print(f"    ... and {len(consolidation_stats) - 10} more")
-
     # Save cleaned data
     print(f"\nSaving cleaned data to {output_file}...")
     df.to_csv(output_file, index=False)
-    print(f"Final cleaned data shape: {df.shape}")
-
-    # Show some statistics
-    print(f"\nCleaning Summary:")
-    print(f"- Unique skills remaining: {df['item'].nunique()}")
-    print(f"- Total rows: {len(df)}")
-
-    # Show top 20 most frequent skills
-    print(f"\nTop 20 most frequent skills:")
-    print(df['item'].value_counts().head(20))
 
     return df
 
@@ -260,12 +230,6 @@ if __name__ == "__main__":
         cleaned_data = clean_skills_data(input_filename, output_filename)
         print(f"\nData cleaning completed successfully!")
         print(f"Cleaned data saved to: {output_filename}")
-
-        # Optional: Show some examples of what was kept
-        print(f"\nSample of cleaned skills:")
-        sample_skills = cleaned_data['item'].unique()[:50]
-        for i, skill in enumerate(sample_skills, 1):
-            print(f"{i:2d}. {skill}")
 
     except FileNotFoundError:
         print(f"Error: Could not find the input file '{input_filename}'")
