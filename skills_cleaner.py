@@ -176,6 +176,39 @@ def clean_skills_data(input_file, output_file):
     # Create lowercase grouping key
     df['item_lower'] = df['item'].str.lower()
 
+    # Helper function to safely parse list strings
+    def parse_list_string(list_str):
+        """Convert string representation of list back to actual list"""
+        if pd.isna(list_str) or list_str == '':
+            return []
+        try:
+            # Remove brackets and split by comma, then clean each item
+            if list_str.startswith('[') and list_str.endswith(']'):
+                items = list_str[1:-1].split(',')
+                return [item.strip().strip("'\"") for item in items if item.strip()]
+            else:
+                return [list_str]
+        except:
+            return [str(list_str)]
+
+    def combine_list_columns(series):
+        """Combine list-like columns from multiple rows"""
+        all_items = []
+        for item in series:
+            parsed = parse_list_string(item)
+            all_items.extend(parsed)
+
+        # Count frequencies and create new format
+        from collections import Counter
+        item_counts = Counter(all_items)
+
+        # Sort by frequency (descending) and format as original
+        sorted_items = sorted(item_counts.items(),
+                              key=lambda x: x[1], reverse=True)
+        formatted_items = [f"{item} ({count})" for item, count in sorted_items]
+
+        return str(formatted_items)
+
     # Group by lowercase and aggregate
     consolidated_rows = []
 
@@ -186,14 +219,23 @@ def clean_skills_data(input_file, output_file):
         # Sum frequencies
         total_frequency = group['frequency'].sum()
 
-        # For other columns, take values from the most frequent casing
-        most_frequent_row = group.loc[group['item'] ==
-                                      preferred_casing].iloc[0] if preferred_casing in group['item'].values else group.iloc[0]
+        # Combine the list columns (job_title, years of experience, job_levels)
+        combined_job_title = combine_list_columns(group['job_title'])
+        combined_years_exp = combine_list_columns(group['years of experience'])
+        combined_job_levels = combine_list_columns(group['job_levels'])
+
+        # Get the type (should be the same for all rows in group)
+        skill_type = group['type'].iloc[0]
 
         # Create consolidated row
-        consolidated_row = most_frequent_row.copy()
-        consolidated_row['item'] = preferred_casing
-        consolidated_row['frequency'] = total_frequency
+        consolidated_row = {
+            'type': skill_type,
+            'item': preferred_casing,
+            'frequency': total_frequency,
+            'job_title': combined_job_title,
+            'years of experience': combined_years_exp,
+            'job_levels': combined_job_levels
+        }
 
         consolidated_rows.append(consolidated_row)
 
