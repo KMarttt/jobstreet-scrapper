@@ -124,7 +124,7 @@ def extract_skills_and_knowledge(csv_file_path):
             row_has_data = False
 
             # Extract job information for this row
-            job_title = clean_and_normalize_value(row.get('job_title'))
+            job_title = clean_and_normalize_value(row.get('title'))
             job_level = clean_and_normalize_value(row.get('job_level'))
             year_of_experience = clean_and_normalize_value(
                 row.get('year_of_experience'))
