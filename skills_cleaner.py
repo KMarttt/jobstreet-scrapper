@@ -1,8 +1,12 @@
 import pandas as pd
 import re
+from pathlib import Path
+import os
+import glob
+from typing import List, Dict, Tuple
 
 
-def clean_skills_data(input_file, output_file):
+def clean_skills_data(input_file):
     """
     Clean skills data by removing non-skill entries while preserving legitimate technical terms
     """
@@ -170,9 +174,6 @@ def clean_skills_data(input_file, output_file):
 
         return most_common
 
-    # Group by lowercase version and consolidate
-    consolidation_stats = []
-
     # Create lowercase grouping key
     df['item_lower'] = df['item'].str.lower()
 
@@ -239,24 +240,11 @@ def clean_skills_data(input_file, output_file):
 
         consolidated_rows.append(consolidated_row)
 
-        # Track consolidation stats
-        if len(group) > 1:
-            original_items = group['item'].tolist()
-            original_freqs = group['frequency'].tolist()
-            consolidation_stats.append({
-                'consolidated_to': preferred_casing,
-                'original_items': original_items,
-                'original_frequencies': original_freqs,
-                'total_frequency': total_frequency
-            })
-
     # Create new dataframe from consolidated rows
     df = pd.DataFrame(consolidated_rows)
-    df = df.drop('item_lower', axis=1)  # Remove helper column
 
     # Save cleaned data
-    print(f"\nSaving cleaned data to {output_file}...")
-    df.to_csv(output_file, index=False)
+    df.to_csv(f"cleaned_{file.name}", index=False)
 
     return df
 
@@ -264,14 +252,12 @@ def clean_skills_data(input_file, output_file):
 if __name__ == "__main__":
     # Usage
     # Change this to your input file
-    input_filename = "skills summary/careerviet_vn_skills_with_jobs.csv"
-    # Change this to your desired output file
-    output_filename = "cleaned_skills_data.csv"
+    csv_files = list(Path("skills_summary").glob("*.csv"))
 
     try:
-        cleaned_data = clean_skills_data(input_filename, output_filename)
-        print(f"\nData cleaning completed successfully!")
-        print(f"Cleaned data saved to: {output_filename}")
+        for file in csv_files:
+            cleaned_data = clean_skills_data(file)
+            print(f"\nData cleaning completed successfully!")
 
     except FileNotFoundError:
         print(f"Error: Could not find the input file '{input_filename}'")

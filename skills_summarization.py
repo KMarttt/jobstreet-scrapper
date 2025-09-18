@@ -272,41 +272,6 @@ def save_results_to_csv(skills_associations, knowledge_associations, output_file
     df_results.to_csv(output_filename, index=False, encoding='utf-8')
     print(f"Saved detailed results to: {output_filename}")
 
-    # Create summary info file
-    summary_filename = output_filename.replace('.csv', '_summary.txt')
-    with open(summary_filename, 'w', encoding='utf-8') as f:
-        f.write("=== PROCESSING SUMMARY ===\n")
-        f.write(f"Total files processed: {source_info['files_processed']}\n")
-        f.write(f"Total rows with data: {source_info['total_rows']}\n")
-        f.write(f"Total unique skills: {len(skills_associations)}\n")
-        f.write(f"Total unique knowledge: {len(knowledge_associations)}\n")
-
-        total_skills_freq = sum(data['frequency']
-                                for data in skills_associations.values())
-        total_knowledge_freq = sum(data['frequency']
-                                   for data in knowledge_associations.values())
-        f.write(f"Total skills (with duplicates): {total_skills_freq}\n")
-        f.write(
-            f"Total knowledge (with duplicates): {total_knowledge_freq}\n\n")
-
-        f.write("=== SOURCE FILES ===\n")
-        for file_path in source_info['source_files']:
-            f.write(f"{file_path}\n")
-
-        f.write(f"\n=== TOP 10 MOST FREQUENT SKILLS ===\n")
-        skills_by_freq = sorted(skills_associations.items(
-        ), key=lambda x: x[1]['frequency'], reverse=True)
-        for item, data in skills_by_freq[:10]:
-            f.write(f"{item}: {data['frequency']} occurrences\n")
-
-        f.write(f"\n=== TOP 10 MOST FREQUENT KNOWLEDGE ===\n")
-        knowledge_by_freq = sorted(knowledge_associations.items(
-        ), key=lambda x: x[1]['frequency'], reverse=True)
-        for item, data in knowledge_by_freq[:10]:
-            f.write(f"{item}: {data['frequency']} occurrences\n")
-
-    print(f"Saved summary to: {summary_filename}")
-
 
 def find_csv_files(base_directory):
     """
@@ -354,7 +319,7 @@ def process_batch():
     base_dir = input(
         "Enter the path to your 'processed_job_data' directory (or press Enter for current directory): ").strip()
     if not base_dir:
-        base_dir = "processed_job_data"
+        base_dir = "job_post_extracted_skills"
 
     if not os.path.exists(base_dir):
         print(f"Error: Directory '{base_dir}' does not exist.")
