@@ -110,7 +110,6 @@ def clean_skills_data(input_file, output_file):
         r'^,\w+',   # Starts with comma
         r'^\(\w+',  # Starts with parenthesis
         r'^\w+\)$',  # Ends with parenthesis
-        r'^[a-z]+$',  # All lowercase single words (many are fragments)
     ]
 
     # But preserve legitimate lowercase technical terms
@@ -147,16 +146,105 @@ def clean_skills_data(input_file, output_file):
     df = df[df['item'] != '']
     print(f"After cleaning whitespace: {df.shape}")
 
-    # Step 7: Remove duplicates (optional)
-    print("Step 7: Removing duplicates...")
+    # Step 7: Remove exact duplicates first
+    print("Step 7: Removing exact duplicates...")
     original_size = len(df)
     df = df.drop_duplicates()
-    print(f"Removed {original_size - len(df)} duplicate rows")
+    print(f"Removed {original_size - len(df)} exact duplicate rows")
+
+    # Step 8: Consolidate case-insensitive duplicates and sum frequencies
+    print("Step 8: Consolidating case-insensitive duplicates...")
+
+    # Create a mapping from lowercase to the most common casing
+    def get_preferred_casing(group):
+        """Return the most frequent casing, or the one with most uppercase if tied"""
+        casing_counts = group['item'].value_counts()
+        if len(casing_counts) == 1:
+            return casing_counts.index[0]
+
+        # If multiple casings exist, prefer the one that appears most frequently
+        # If tied, prefer the one with proper capitalization (first letter uppercase)
+        most_common = casing_counts.index[0]
+
+        # Check if there's a properly capitalized version
+        proper_cases = [
+            case for case in casing_counts.index if case[0].isupper() and case[1:].islower()]
+        if proper_cases:
+            return proper_cases[0]
+
+        return most_common
+
+    # Group by lowercase version and consolidate
+    consolidation_stats = []
+
+    # Create lowercase grouping key
+    df['item_lower'] = df['item'].str.lower()
+
+    # Group by lowercase and aggregate
+    consolidated_rows = []
+
+    for lower_item, group in df.groupby('item_lower'):
+        # Get preferred casing
+        preferred_casing = get_preferred_casing(group)
+
+        # Sum frequencies
+        total_frequency = group['frequency'].sum()
+
+        # For other columns, take values from the most frequent casing
+        most_frequent_row = group.loc[group['item'] ==
+                                      preferred_casing].iloc[0] if preferred_casing in group['item'].values else group.iloc[0]
+
+        # Create consolidated row
+        consolidated_row = most_frequent_row.copy()
+        consolidated_row['item'] = preferred_casing
+        consolidated_row['frequency'] = total_frequency
+
+        consolidated_rows.append(consolidated_row)
+
+        # Track consolidation stats
+        if len(group) > 1:
+            original_items = group['item'].tolist()
+            original_freqs = group['frequency'].tolist()
+            consolidation_stats.append({
+                'consolidated_to': preferred_casing,
+                'original_items': original_items,
+                'original_frequencies': original_freqs,
+                'total_frequency': total_frequency
+            })
+
+    # Create new dataframe from consolidated rows
+    df = pd.DataFrame(consolidated_rows)
+    df = df.drop('item_lower', axis=1)  # Remove helper column
+
+    print(
+        f"Consolidated {len(consolidation_stats)} sets of case-insensitive duplicates")
+
+    # Show some examples of consolidation
+    if consolidation_stats:
+        print(f"\nExamples of case consolidation:")
+        # Show first 10 examples
+        for i, stat in enumerate(consolidation_stats[:10]):
+            original_str = ", ".join([f"'{item}' ({freq})" for item, freq in zip(
+                stat['original_items'], stat['original_frequencies'])])
+            print(
+                f"{i+1:2d}. {original_str} → '{stat['consolidated_to']}' ({stat['total_frequency']})")
+
+        if len(consolidation_stats) > 10:
+            print(f"    ... and {len(consolidation_stats) - 10} more")
 
     # Save cleaned data
     print(f"\nSaving cleaned data to {output_file}...")
     df.to_csv(output_file, index=False)
     print(f"Final cleaned data shape: {df.shape}")
+
+    # Show some statistics
+    print(f"\nCleaning Summary:")
+    print(f"- Unique skills remaining: {df['item'].nunique()}")
+    print(f"- Total rows: {len(df)}")
+
+    # Show top 20 most frequent skills
+    print(f"\nTop 20 most frequent skills:")
+    print(df['item'].value_counts().head(20))
 
     return df
 
