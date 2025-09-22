@@ -27,9 +27,13 @@ jd_skills_analysis.ipynb
 test_xpath.py
 
 combine_csv_data.ipynb
+JobBERT_title_normalization_old.ipynb
+JoBERT_title_normalization2.ipynb
+sg_data_title_normalization.ipynb
 
 old_csv_job_translator.py
 
+q1_analyzation_old.ipynb
 
 jobnew_scraper_test.py
 
