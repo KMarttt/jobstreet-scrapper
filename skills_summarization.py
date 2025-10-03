@@ -319,7 +319,7 @@ def process_batch():
     base_dir = input(
         "Enter the path to your 'processed_job_data' directory (or press Enter for current directory): ").strip()
     if not base_dir:
-        base_dir = "job_post_extracted_skills"
+        base_dir = "processed_job_data"
 
     if not os.path.exists(base_dir):
         print(f"Error: Directory '{base_dir}' does not exist.")
