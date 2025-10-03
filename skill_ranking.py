@@ -273,7 +273,7 @@ Be strict - only classify clearly technology-related items.
 
     def save_full_classification(self, classified_items, output_file):
         """Save full classification to a text file instead of JSON"""
-        with open(output_file, 'w') as f:
+        with open(output_file, 'w', encoding='utf-8') as f:
             for category in ['tool', 'language', 'platform', 'other']:
                 items = classified_items.get(category, [])
                 f.write(f"\n{'='*70}\n")
@@ -362,7 +362,7 @@ SAMPLE TOP 5 FROM EACH CATEGORY:
             for _, row in category_data.iterrows():
                 summary_text += f"  {row['rank']}. {row['item']} (freq: {row['frequency']})\n"
 
-        with open(summary_file, 'w') as f:
+        with open(summary_file, 'w', encoding='utf-8') as f:
             f.write(summary_text)
 
         print(f"   ✅ Summary saved to: {summary_file}")
@@ -387,8 +387,8 @@ if __name__ == "__main__":
 
     # Configuration
     # Your input CSV file
-    input_file = "skills_summary/cleaned/cleaned_2/ph_filtered.csv"
-    output_file = "top50_tech_stack_analysis_ph.csv"  # Output file
+    input_file = "skills_summary/cleaned/cleaned_2/sg_filtered.csv"
+    output_file = "top50_tech_stack_analysis_sg.csv"  # Output file
 
     print("\n🚀 Starting Tech Stack Analysis...")
     print(f"📁 Input: {input_file}")
