@@ -7,16 +7,6 @@ from pathlib import Path
 
 
 def extract_site_country_from_filename(filename):
-    """
-    Extract site and country from filename following the pattern:
-    site_country_search-term_final_complete_results_date_time
-
-    Args:
-        filename (str): The CSV filename
-
-    Returns:
-        tuple: (site, country) or (None, None) if pattern doesn't match
-    """
     # Remove file extension if present
     base_name = os.path.splitext(filename)[0]
 
@@ -30,16 +20,6 @@ def extract_site_country_from_filename(filename):
 
 
 def extract_site_country_from_folder(folder_path):
-    """
-    Extract site and country from folder name following the pattern:
-    processed_site_country
-
-    Args:
-        folder_path (str): The folder path
-
-    Returns:
-        tuple: (site, country) or (None, None) if pattern doesn't match
-    """
     folder_name = os.path.basename(folder_path)
 
     # Remove 'processed_' prefix if it exists
@@ -56,15 +36,6 @@ def extract_site_country_from_folder(folder_path):
 
 
 def clean_and_normalize_value(value):
-    """
-    Clean and normalize job-related values for consistent grouping.
-
-    Args:
-        value: The value to clean (job_title, job_level, or year_of_experience)
-
-    Returns:
-        str: Cleaned and normalized value
-    """
     if pd.isna(value) or value is None:
         return "Not Specified"
 
@@ -87,17 +58,6 @@ def clean_and_normalize_value(value):
 
 
 def extract_skills_and_knowledge(csv_file_path):
-    """
-    Extract skills and knowledge from CSV file with associated job information.
-
-    Args:
-        csv_file_path (str): Path to the CSV file
-
-    Returns:
-        tuple: (skills_associations, knowledge_associations, total_rows_processed)
-        where associations are dicts mapping items to job info
-    """
-
     try:
         # Read the CSV file
         df = pd.read_csv(csv_file_path)
@@ -180,15 +140,6 @@ def extract_skills_and_knowledge(csv_file_path):
 
 
 def summarize_associations(associations_list):
-    """
-    Summarize and deduplicate job associations across multiple files.
-
-    Args:
-        associations_list (list): List of association dictionaries
-
-    Returns:
-        dict: Combined associations with deduplicated job information
-    """
     combined_associations = defaultdict(lambda: {
         'frequency': 0,
         'job_titles': [],
@@ -228,15 +179,6 @@ def summarize_associations(associations_list):
 
 
 def save_results_to_csv(skills_associations, knowledge_associations, output_filename, source_info):
-    """
-    Save results to CSV file with the specified column structure.
-
-    Args:
-        skills_associations (dict): Dictionary with skills and their job associations
-        knowledge_associations (dict): Dictionary with knowledge and their job associations
-        output_filename (str): Output CSV filename
-        source_info (dict): Information about source files processed
-    """
     # Create DataFrame with the exact columns requested
     results_data = []
 
@@ -274,15 +216,6 @@ def save_results_to_csv(skills_associations, knowledge_associations, output_file
 
 
 def find_csv_files(base_directory):
-    """
-    Find all CSV files in the folder structure: processed_job_data/processed_site_country/*.csv
-
-    Args:
-        base_directory (str): Base directory path (processed_job_data)
-
-    Returns:
-        list: List of tuples (csv_file_path, site, country)
-    """
     csv_files = []
 
     # Look for subdirectories that match the pattern processed_*
@@ -312,9 +245,6 @@ def find_csv_files(base_directory):
 
 
 def process_batch():
-    """
-    Process all CSV files in batch mode.
-    """
     # Get base directory from user
     base_dir = input(
         "Enter the path to your 'processed_job_data' directory (or press Enter for current directory): ").strip()
@@ -407,9 +337,6 @@ def process_batch():
 
 
 def process_single_file():
-    """
-    Process a single CSV file.
-    """
     # Get input filename from user
     csv_file_path = input("Enter the path to your CSV file: ").strip()
 
@@ -476,26 +403,6 @@ def process_single_file():
         }
         save_results_to_csv(
             skills_associations, knowledge_associations, output_filename, source_info)
-
-        # Optionally display detailed info for specific items
-        show_details = input(
-            "\nDo you want to see job associations for top skills/knowledge? (y/n): ").lower().strip()
-        if show_details == 'y':
-            print("\n=== TOP 3 SKILLS WITH JOB ASSOCIATIONS ===")
-            for item, data in skills_by_freq[:3]:
-                print(f"\n{item} (appears {data['frequency']} times):")
-                print(f"  Job Titles: {'; '.join(data['job_titles'][:5])}")
-                print(f"  Job Levels: {'; '.join(data['job_levels'][:5])}")
-                print(
-                    f"  Experience: {'; '.join(data['years_of_experience'][:5])}")
-
-            print("\n=== TOP 3 KNOWLEDGE WITH JOB ASSOCIATIONS ===")
-            for item, data in knowledge_by_freq[:3]:
-                print(f"\n{item} (appears {data['frequency']} times):")
-                print(f"  Job Titles: {'; '.join(data['job_titles'][:5])}")
-                print(f"  Job Levels: {'; '.join(data['job_levels'][:5])}")
-                print(
-                    f"  Experience: {'; '.join(data['years_of_experience'][:5])}")
 
     except Exception as e:
         print(f"An error occurred: {e}")

@@ -279,7 +279,7 @@ if __name__ == "__main__":
     # Your input CSV file
     input_file = "my_data_reduced.csv"
     # Output file name
-    output_file = "skills_summary/cleaned/cleaned_2/my_filtered.csv"
+    output_file = "skills_summary/cleaned/filtered/my_filtered.csv"
 
     # Process the dataset
     print("="*60)

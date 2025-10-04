@@ -709,7 +709,8 @@ def process_all_files_in_folder(folder_path: str, output_directory: str = "batch
 # Example usage and main execution
 if __name__ == "__main__":
     # Configuration
-    INPUT_FOLDER = "dataset"  # Change this to your folder containing CSV files
+    # Change this to your folder containing CSV files
+    INPUT_FOLDER = "raw_job_post_scrapings"
     OUTPUT_FOLDER = "processed_job_data"
     CONFIDENCE_THRESHOLD = 0.7
 

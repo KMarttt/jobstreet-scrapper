@@ -34,3 +34,6 @@ jobnew_scraper_test.py
 .vscode
 
 processed_job_data/
+job_post_data_set/
+job_post_extracted_skills_jobbert/
+figures
