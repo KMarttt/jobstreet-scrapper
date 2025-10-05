@@ -48,10 +48,16 @@ colors = {'tool': '#3498db', 'language': '#e74c3c',
           'platform': '#2ecc71', 'Concept': '#f39c12'}
 
 country_colors = {
-    'VN': '#e74c3c', 'US': '#3498db', 'PH': '#2ecc71',
-    'IN': '#f39c12', 'SG': '#9b59b6', 'JP': '#e67e22',
-    'UK': '#1abc9c', 'AU': '#34495e', 'CA': '#16a085',
-    'DE': '#c0392b'
+    'VN': '#e74c3c',    # Vietnam - Red
+    'ID': '#3498db',    # Indonesia - Blue
+    'PH': '#2ecc71',    # Philippines - Green
+    'SG': '#9b59b6',    # Singapore - Purple
+    'MY': '#f39c12',    # Malaysia - Orange
+    'TH': '#e67e22',    # Thailand - Dark Orange
+    'MM': '#1abc9c',    # Myanmar - Turquoise
+    'KH': '#34495e',    # Cambodia - Dark Gray
+    'LA': '#16a085',    # Laos - Teal
+    'BN': '#c0392b'     # Brunei - Dark Red
 }
 
 # ===== 1. TOP 20 SKILLS ACROSS ALL COUNTRIES =====
@@ -67,7 +73,7 @@ plt.barh(range(len(top_20_overall)),
 plt.yticks(range(len(top_20_overall)), top_20_overall['Item'])
 plt.xlabel('Total Frequency Across All Countries',
            fontsize=14, fontweight='bold')
-plt.title('Top 20 Most In-Demand Skills Globally',
+plt.title('Top 20 Most In-Demand Skills',
           fontsize=16, fontweight='bold')
 plt.gca().invert_yaxis()
 
